@@ -1,0 +1,26 @@
+[project]
+name = "soittolista-puristin"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    # HTTP & doc fetching
+    "httpx>=0.27",
+    "trafilatura>=1.12",
+    "pyyaml>=6.0",
+    # API-kirjastot
+    "spotipy>=2.24",
+    "pylast>=5.3",
+    "discogs-client>=2.4",
+    "musicbrainzngs>=0.7",
+    "liblistenbrainz>=0.6",
+    # Yleishyödylliset
+    "python-dotenv>=1.0",
+    "rich>=13.0",        # siistiä konsolioutputtia logeihin
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["api", "curator", "tools"]
