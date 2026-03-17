@@ -115,3 +115,66 @@ print(builder.summary())
 - Discogs producer_graph on vahva työkalu suomalaisen indie-verkoston löytämiseen
 - PlaylistBuilder deduplicoi automaattisesti: sama kappale useasta lähteestä → korkeampi pistemäärä
 - `escape`-moodissa `strategy.spotify_personalization = False` — historia ei auta kuplapakossa
+
+## API-wrapperit — oikea käyttö
+
+### LastFmClient
+```python
+from api.lastfm import LastFmClient
+lfm = LastFmClient()
+
+# similar_artists palauttaa SimilarArtist-objekteja, EI dict:ejä
+similar = lfm.similar_artists("Ben Howard", limit=20)
+for a in similar:
+    print(a.name, a.match)   # ← .name ja .match, EI a["name"]
+
+# artist_top_tracks palauttaa dict-listaa: [{title, artist, playcount}]
+tracks = lfm.artist_top_tracks("Ben Howard", limit=5)
+for t in tracks:
+    print(t["title"], t["playcount"])
+
+# artist_listeners — kuuntelijamäärä suosio-indikaattorina
+n = lfm.artist_listeners("Ben Howard")
+
+# artist_tags — genre-signaali
+tags = lfm.artist_tags("Ben Howard", limit=5)   # → ["folk", "singer-songwriter", ...]
+```
+
+### DiscogsClient
+```python
+from api.discogs import DiscogsClient
+dc = DiscogsClient()
+
+# search() on alias search_release:lle — käytä tätä
+results = dc.search("Damien Rice O", limit=3)
+# → [{id, title, year, genres, styles, country, community_have, community_want}]
+for r in results:
+    print(r["title"], r["community_want"])   # want = keräilyarvo = laatu-indikaattori
+
+# Laadun kynnykset:
+#   community_want > 2000 → klassikko ★★★
+#   community_want > 500  → merkittävä ★★
+#   community_want > 100  → hyvä ★
+#   < 100                 → heikko signaali
+
+# search_master — albumi-tasolla, EI yksittäisiä painoksia (parempi genre-data)
+masters = dc.search_master("Iron & Wine", limit=5)
+# → [{id, title, year, genres, styles, community_have, community_want}]
+```
+
+### SpotifyClient
+```python
+from api.spotify import SpotifyClient
+sp = SpotifyClient()
+
+# Sisäinen asiakas: sp._sp (ei sp.sp)
+# Kappaleiden haku Spotify-URI:a varten
+tracks = sp.search_tracks("Ben Howard Conrad", limit=3)
+for t in tracks:
+    print(t.artist, t.name, t.uri)
+
+# Soittolistan hallinta
+sp.add_tracks(playlist_id, [uri1, uri2])
+sp.remove_tracks(playlist_id, [uri1])
+tracks = sp.get_playlist_tracks(playlist_id)
+```

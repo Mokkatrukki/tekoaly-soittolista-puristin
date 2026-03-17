@@ -153,6 +153,10 @@ class DiscogsClient:
 
     # ─── Haku ────────────────────────────────────────────────────────────────
 
+    def search(self, query: str, limit: int = 5, country: str = "") -> list[dict]:
+        """Alias search_release:lle. Käytä tätä oletuksena."""
+        return self.search_release(query, limit=limit, country=country)
+
     def search_release(self, query: str, limit: int = 5, country: str = "") -> list[dict]:
         """
         Hae releaseja hakusanalla.
@@ -225,12 +229,16 @@ class DiscogsClient:
         out = []
         for r in self._iter_results(results, limit):
             try:
+                d = r.data if hasattr(r, "data") and isinstance(r.data, dict) else {}
+                comm = d.get("community", {}) or {}
                 out.append({
                     "id": r.id,
                     "title": r.title,
                     "year": getattr(r, "year", None),
                     "genres": list(getattr(r, "genres", []) or []),
                     "styles": list(getattr(r, "styles", []) or []),
+                    "community_have": int(comm.get("have", 0) or 0),
+                    "community_want": int(comm.get("want", 0) or 0),
                 })
             except Exception:
                 continue

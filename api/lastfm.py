@@ -171,6 +171,14 @@ class LastFmClient:
             })
         return result
 
+    def artist_listeners(self, artist: str) -> int:
+        """Artistin kuuntelijamäärä Last.fm:ssä — suosio-indikaattori."""
+        a = self._network.get_artist(artist)
+        try:
+            return int(a.get_listener_count())
+        except Exception:
+            return 0
+
     def artist_tags(self, artist: str, limit: int = 10) -> list[str]:
         """
         Artistin top-tagit — genresignaali.

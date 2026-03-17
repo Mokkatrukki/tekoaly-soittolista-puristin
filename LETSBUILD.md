@@ -157,6 +157,37 @@ Inspiraationa Alice Labs/Solita "Embracing User Unpredictability" (2022) — ei 
 - Discogs want > 500 = merkittävä, > 2000 = klassikko
 - Rate limit -tuki: kun Discogs hidastaa, täydennä Last.fm:llä ja MusicBrainzilla
 
+### [2026-03-17] Singer-songwriter lista API-validoitu + wrapper-korjaukset
+
+**Soittolista: "Rehellisiä tarinoita"** (33 kpl, spotify:playlist:5SHZU2J4GSTjmQIIWuhT7W)
+- Alkuperäinen 25 kpl lista epäiltiin omasta päästä tehdyksi → validoitiin APIlla
+- Seed-artistit: Samae Koskinen + Jarkko Martikainen (Last.fm `similar_artists`)
+
+**Validointi:**
+- Last.fm `similar_artists`: Samae → Matti Johannes Koivu, Ultramariini, Liekki, Minä ja Ville Ahonen ✓
+- Last.fm `similar_artists`: Jarkko → Tommi Liimatta, Herra Ylppö & Ihmiset, Dave Lindholm ✓
+- Kansainväliset seedit (Ben Howard, Glen Hansard, James Vincent McMorrow jne.) → vahvistivat kaikki nykyiset kappaleet
+
+**API-löydöt jotka puuttuivat listalta:**
+- Damien Rice (want=1782, Glen Hansard similar) → "Volcano" lisätty
+- Kings of Convenience (want=1081, José González similar) → "Cayman Islands"
+- Iron & Wine (want=1397, City and Colour similar) → "Each Coming Night"
+- The Tallest Man on Earth (want=484) → "I Won't Be Found"
+- Keaton Henson (want=356, James Vincent McMorrow similar) → "You Don't Know How Lucky You Are"
+- Dave Lindholm (Jarkko Martikainen similar, suomen blues-legenda) → "Pieni & hento ote"
+- Topi Saha (Samae Koskinen similar) → "Se, joka karkuun pääs"
+- Minä ja Ville Ahonen (Samae Koskinen similar match 0.76) → "Sano"
+
+**Wrapper-korjaukset:**
+- `api/discogs.py`: lisätty `search()` alias `search_release`:lle (lyhyempi kutsumuoto)
+- `api/discogs.py`: `search_master()` saa nyt `community_have/want` kentät (aiemmin puuttui)
+- `api/lastfm.py`: lisätty `artist_listeners(artist)` → kuuntelijamäärä — aiemmin ei ollut tapaa hakea tätä ilman ylimääräistä työtä
+- Huomio: `similar_artists` palauttaa `SimilarArtist`-objekteja (`.name`, `.match`), ei dict:ejä — dokumentoitu `/build` skilliin
+
+**`/build` skill päivitetty:**
+- Lisätty "API-wrapperit — oikea käyttö" -osio esimerkkikoodeineen
+- Selkeyttää oikeat paluumuodot per metodi (dict vs objekti), community_want-kynnykset (>2000 klassikko), sisäisen asiakkaan `sp._sp` vs väärä `sp.sp`
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten
