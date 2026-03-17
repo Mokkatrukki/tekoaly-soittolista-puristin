@@ -119,6 +119,20 @@ Inspiraationa Alice Labs/Solita "Embracing User Unpredictability" (2022) — ei 
 **`detect_mode(description)`** — arvailee moodin käyttäjän sanoista
 **`INTERVIEW_GUIDE`** — ei tiukka skripti, ilmapiiri: kysy tunnelma ensin, tunnista moodi, tiedä mitä EI haluta
 
+### [2026-03-17] Tuottajaverkosto: Discogs + MusicBrainz
+
+**Käyttötapaus:** Arppa → Väinö Karjalainen → Ursus Factory, Grandmother Corn, Karri Koira...
+
+**`DiscogsClient.producer_graph(artist_name)`**
+- Hae artisti → `artist_releases` → per release: `release_credits` → löytää extraartistit joilla role="Producer"
+- Kriittinen löydös: extraartist-data on `release`-objektilla (lazy-load), ei `master`-objektilla — pitää hakea main_release masterilta ja triggeröidä täysi lataus `r.title`:llä
+- Per tuottaja: `_find_producer_artists(producer_id)` käyttää tuottajan `artist_releases`:ia — Discogs listaa siellä MYÖS releaset joissa artisti on tuottajana (ei vain pääartistina). Testattu: Väinö Karjalainen id=4488400 → Ursus Factory, Karri Koira, Lyyti ym.
+- `artist_releases` päivitetty palauttamaan `artist` (pääartisti) ja `role` (miten liittyy releaseen) `r.data`:sta
+
+**`MusicBrainzClient.producer_graph(artist_name)`** — rinnakkainen toteutus MusicBrainzin kautta:
+- `_recording_artist_rels(mbid)` hakee kappaleen artist-rels (tuottaja, äänittäjä jne.)
+- `_productions_by_artist(mbid)` käyttää `search_recordings(arid=mbid)` — `arid` on Lucene-kenttä joka löytää kaikki kappaleet joissa MBID esiintyy missä roolissa tahansa
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten

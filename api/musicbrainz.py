@@ -284,6 +284,139 @@ class MusicBrainzClient:
             relationships=relationships,
         )
 
+    # ─── Tuottajaverkosto ─────────────────────────────────────────────────────
+
+    def producer_graph(
+        self,
+        artist_name: str,
+        max_recordings: int = 8,
+    ) -> dict:
+        """
+        Tuottajaverkosto: etsi artisti → löydä tuottajat → löydä heidän muut tuotantonsa.
+
+        Palauttaa:
+        {
+          "artist": "Arpa",
+          "artist_mbid": "...",
+          "producers": [
+            {
+              "name": "Väinö Karjalainen",
+              "mbid": "...",
+              "other_artists": ["Ursus Factory", "Nössö Nova", ...]
+            }
+          ]
+        }
+
+        Miten toimii:
+          1. Hae artistin MBID
+          2. Hae artistin kappaleet (artist_recordings)
+          3. Per kappale: hae artist-rels → etsi "producer"-tyyppiset suhteet
+          4. Per tuottaja: search_recordings(arid=tuottajan MBID) → poimii
+             kaikki kappaleet joissa tuottaja on mukana (missä roolissa tahansa),
+             ja kerää niiden artist-creditit = muut artistit joita tuottaja on tuottanut
+        """
+        # 1. Etsi artisti
+        artists = self.search_artist(artist_name, limit=3)
+        if not artists:
+            return {"artist": artist_name, "producers": [], "error": "Artistia ei löydy"}
+
+        artist_mbid = artists[0]["mbid"]
+        artist_name_found = artists[0]["name"]
+
+        # 2. Hae kappaleet
+        recordings = self.artist_recordings(artist_mbid, limit=max_recordings)
+
+        # 3. Etsi tuottajat artist-rels:stä
+        producers: dict[str, str] = {}  # name → mbid
+        for rec in recordings[:max_recordings]:
+            try:
+                rels = self._recording_artist_rels(rec["mbid"])
+                for rel in rels:
+                    if "producer" in rel["type"].lower() and rel["target_mbid"]:
+                        producers[rel["target_name"]] = rel["target_mbid"]
+            except Exception:
+                continue
+
+        if not producers:
+            return {
+                "artist": artist_name_found,
+                "artist_mbid": artist_mbid,
+                "producers": [],
+                "note": "Ei tuottajatietoja MusicBrainzissa (kappaleet voivat puuttua tai olla merkitsemättä)",
+            }
+
+        # 4. Jokaiselle tuottajalle: hae muut artistit joita he ovat tuottaneet
+        result_producers = []
+        for producer_name, producer_mbid in producers.items():
+            other_artists = self._productions_by_artist(
+                producer_mbid,
+                exclude_mbids={artist_mbid, producer_mbid},
+            )
+            result_producers.append({
+                "name": producer_name,
+                "mbid": producer_mbid,
+                "other_artists": other_artists,
+            })
+
+        return {
+            "artist": artist_name_found,
+            "artist_mbid": artist_mbid,
+            "producers": result_producers,
+        }
+
+    def _recording_artist_rels(self, recording_mbid: str) -> list[dict]:
+        """Hae kappaleen artist-rels: tuottaja, äänittäjä, soittajat jne."""
+        raw = self._call(
+            "recording.artist_rels",
+            {"mbid": recording_mbid},
+            musicbrainzngs.get_recording_by_id,
+            recording_mbid,
+            includes=["artist-rels"],
+        )
+        r = raw.get("recording", {})
+        return _parse_relationships(r.get("artist-relation-list", []))
+
+    def _productions_by_artist(
+        self,
+        artist_mbid: str,
+        exclude_mbids: set[str] | None = None,
+        limit: int = 25,
+    ) -> list[str]:
+        """
+        Hae artistit joita tämä henkilö on tuottanut (tai joiden kanssa on työskennellyt).
+
+        Käyttää search_recordings(arid=mbid) — 'arid' on MusicBrainzin
+        Lucene-kenttä joka löytää kappaleet joissa MBID esiintyy missä roolissa tahansa
+        (myös tuottajana, ei vain pääartistina).
+        Poimii näiden kappaleiden artist-creditit = muut artistit.
+        """
+        exclude_mbids = exclude_mbids or set()
+        try:
+            raw = self._call(
+                "recording.search_by_producer",
+                {"arid": artist_mbid, "limit": limit},
+                musicbrainzngs.search_recordings,
+                arid=artist_mbid,
+                limit=limit,
+            )
+        except Exception:
+            return []
+
+        artists: dict[str, str] = {}  # mbid → name
+        for r in raw.get("recording-list", []):
+            for entry in r.get("artist-credit", []):
+                if not isinstance(entry, dict) or "artist" not in entry:
+                    continue
+                a = entry["artist"]
+                a_mbid = a.get("id", "")
+                a_name = a.get("name", "")
+                if a_mbid and a_mbid not in exclude_mbids:
+                    artists[a_mbid] = a_name
+
+        return list(artists.values())
+
+    # ─── Artist recordings ────────────────────────────────────────────────────
+
     def artist_recordings(
         self,
         mbid: str,

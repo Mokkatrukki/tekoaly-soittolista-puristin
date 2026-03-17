@@ -242,6 +242,190 @@ class DiscogsClient:
             tracklist=tracklist,
         )
 
+    def release_credits(self, release_id: int) -> dict:
+        """
+        Hae releasen henkilöcreditit (extraartists): tuottajat, äänittäjät, miksaajat jne.
+
+        Palauttaa:
+        {
+          "producers":  [{"id": 123, "name": "Väinö Karjalainen"}],
+          "engineers":  [...],
+          "all_credits": [{"id", "name", "role"}]
+        }
+
+        Discogs-release sisältää 'extraartists'-listan jossa rooli on string kuten
+        "Produced By", "Recorded By", "Mixed By", "Written-By" jne.
+        """
+        r = self._time(
+            "database.release.credits", {"id": release_id},
+            self._d.release, release_id,
+        )
+        # Triggeröi täysi datahaku (discogs_client on lazy-loading)
+        _ = r.title
+        extra = r.data.get("extraartists", []) or []
+        producers = []
+        engineers = []
+        all_credits = []
+        for person in extra:
+            try:
+                # extra voi olla dict (r.data) tai objekti (getattr)
+                if isinstance(person, dict):
+                    name = person.get("name", "") or ""
+                    person_id = person.get("id", None)
+                    role = person.get("role", "") or ""
+                else:
+                    name = getattr(person, "name", "") or ""
+                    person_id = getattr(person, "id", None)
+                    role = getattr(person, "role", "") or ""
+                entry = {"id": person_id, "name": name, "role": role}
+                all_credits.append(entry)
+                role_lower = role.lower()
+                if "produc" in role_lower:
+                    producers.append({"id": person_id, "name": name})
+                if any(w in role_lower for w in ("engineer", "recorded", "mixed", "mastered")):
+                    engineers.append({"id": person_id, "name": name})
+            except Exception:
+                continue
+        return {"producers": producers, "engineers": engineers, "all_credits": all_credits}
+
+    def producer_graph(
+        self,
+        artist_name: str,
+        max_releases: int = 5,
+        max_producer_releases: int = 30,
+    ) -> dict:
+        """
+        Tuottajaverkosto Discogsista.
+
+        Arpa → Väinö Karjalainen (extraartist, role="Produced By")
+             → Ursus Factory, Nössö Nova (muut artistit joita Väinö on tuottanut)
+
+        Toiminta:
+          1. Hae artisti → ID
+          2. Hae heidän releaset → extraartists → kerää tuottajat
+          3. Per tuottaja: search(name) → releases → kerää pääartistit
+
+        Palauttaa:
+        {
+          "artist": "Arpa",
+          "producers": [
+            {
+              "name": "Väinö Karjalainen",
+              "id": 123,
+              "other_artists": ["Ursus Factory", "Nössö Nova", ...]
+            }
+          ]
+        }
+
+        Huom: Discogs-haku indeksoi extraartist-creditit, joten hakeminen tuottajan nimellä
+        palauttaa releaset joissa hän esiintyy missä roolissa tahansa.
+        """
+        # 1. Etsi artisti
+        artists = self.search_artist(artist_name, limit=3)
+        if not artists:
+            return {"artist": artist_name, "producers": [], "error": "Artistia ei löydy"}
+        artist_id = artists[0]["id"]
+        artist_name_found = artists[0]["name"]
+
+        # 2. Hae artistin releaset ja etsi tuottajat extraartistseista
+        releases = self.artist_releases(artist_id, limit=max_releases)
+        producers: dict[str, int | None] = {}  # name → discogs_id
+        for rel in releases:
+            try:
+                rel_id = rel["id"]
+                rel_type = rel.get("type", "")
+
+                # Jos kyseessä on master-release, hae main release sen sijaan
+                # (extraartist-data on releasella, ei masterilla)
+                if rel_type == "master" or rel_type == "Master":
+                    m = self._d.master(rel_id)
+                    main_rel = getattr(m, "main_release", None)
+                    if main_rel:
+                        rel_id = main_rel.id
+
+                credits = self.release_credits(rel_id)
+                for p in credits["producers"]:
+                    if p["name"] and p["name"] not in producers:
+                        producers[p["name"]] = p["id"]
+            except Exception:
+                continue
+
+        if not producers:
+            return {
+                "artist": artist_name_found,
+                "producers": [],
+                "note": "Ei tuottajacreditejä Discogsissa (releaseilla ei extraartists-dataa)",
+            }
+
+        # 3. Per tuottaja: etsi mitä muuta he ovat tuottaneet
+        result_producers = []
+        for producer_name, producer_id in producers.items():
+            # Varmista Discogs-ID: jos extraartistista saatiin ID, käytetään sitä,
+            # muuten haetaan artistihaulla
+            if not producer_id:
+                found = self.search_artist(producer_name, limit=1)
+                producer_id = found[0]["id"] if found else None
+
+            if not producer_id:
+                result_producers.append({"name": producer_name, "id": None, "other_artists": []})
+                continue
+
+            other_artists = self._find_producer_artists(
+                producer_id,
+                exclude_artist=artist_name_found,
+                limit=max_producer_releases,
+            )
+            result_producers.append({
+                "name": producer_name,
+                "id": producer_id,
+                "other_artists": other_artists,
+            })
+
+        return {
+            "artist": artist_name_found,
+            "artist_id": artist_id,
+            "producers": result_producers,
+        }
+
+    def _find_producer_artists(
+        self,
+        producer_id: int,
+        exclude_artist: str = "",
+        limit: int = 30,
+    ) -> list[str]:
+        """
+        Hae artistit joita tämä tuottaja on tuottanut.
+
+        Discogs pitää tuottajan artist_releases-listassa MYÖS julkaisut joissa
+        hän on tuottajana (ei pääartistina). Haetaan kaikki heidän releaset ja
+        poimitaan pääartistit niistä joissa tuottaja ei itse ole pääartisti.
+        """
+        exclude_lower = exclude_artist.lower()
+        try:
+            releases = self.artist_releases(producer_id, limit=limit)
+        except Exception:
+            return []
+
+        # Haetaan myös tuottajan oman nimen jotta voidaan filtteröidä pois
+        try:
+            producer_info = self.artist(producer_id)
+            producer_name_lower = producer_info["name"].lower()
+        except Exception:
+            producer_name_lower = ""
+
+        artists: dict[str, str] = {}  # lowercase → original name
+        for r in releases:
+            artist = r.get("artist", "") or ""
+            artist_lower = artist.lower()
+            if (artist and
+                    artist_lower != exclude_lower and
+                    artist_lower != producer_name_lower and
+                    "various" not in artist_lower and
+                    artist_lower not in artists):
+                artists[artist_lower] = artist
+
+        return list(artists.values())
+
     # ─── Artisti ─────────────────────────────────────────────────────────────
 
     def artist(self, artist_id: int) -> dict:
@@ -268,9 +452,13 @@ class DiscogsClient:
         sort_order: str = "desc",
     ) -> list[dict]:
         """
-        Artistin julkaisut. Hyvä lähde genre/style-datalle — tyypillisesti
-        master-releaseja joilla on genres/styles kenttä.
-        Palauttaa: [{id, title, year, type, genres, styles}]
+        Artistin julkaisut. Sisältää myös julkaisut joissa artisti on tuottajana/yhteistyössä.
+        Palauttaa: [{id, title, artist, year, type, role, genres, styles}]
+
+        'role' kertoo miten artisti liittyy tähän releaseen:
+          "Main"      = pääartisti
+          "Featuring" = featuringinä
+          "" / muu    = tuottaja, äänittäjä tms. (extraartist)
         """
         a = self._d.artist(artist_id)
         releases = self._time(
@@ -281,11 +469,17 @@ class DiscogsClient:
         out = []
         for r in list(releases)[:limit]:
             try:
+                # artist ja role löytyvät suoraan r.data:sta (ei attribuutteina)
+                d = r.data if hasattr(r, "data") else {}
+                main_artist = d.get("artist", "") or ""
+                role = d.get("role", "") or ""
                 out.append({
                     "id": r.id,
                     "title": r.title,
-                    "year": getattr(r, "year", None),
-                    "type": getattr(r, "type", ""),
+                    "artist": main_artist,
+                    "year": d.get("year") or getattr(r, "year", None),
+                    "type": d.get("type", "") or getattr(r, "type", ""),
+                    "role": role,
                     "genres": list(getattr(r, "genres", []) or []),
                     "styles": list(getattr(r, "styles", []) or []),
                 })
