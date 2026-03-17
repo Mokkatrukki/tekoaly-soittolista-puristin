@@ -265,6 +265,42 @@ class LastFmClient:
             for item in (raw or [])
         ]
 
+    # ─── Haku ────────────────────────────────────────────────────────────────
+
+    def search_artist(self, query: str, limit: int = 5) -> list[dict]:
+        """
+        Hae artistia nimellä — hyödyllinen kirjoitusvirheisiin ja epätäsmällisiin nimiin.
+        Palauttaa: [{name, listeners, mbid}]
+        """
+        raw = self._call(
+            "artist.search",
+            {"artist": query, "limit": limit},
+            self._network.search_for_artist(query).get_next_page,
+        )
+        return [
+            {"name": str(item.name)}
+            for item in (raw or [])[:limit]
+        ]
+
+    def search_track(self, title: str, artist: str = "", limit: int = 5) -> list[dict]:
+        """
+        Hae kappaletta nimellä, optionaalisesti artistin mukaan rajattuna.
+        Palauttaa: [{title, artist}]
+        """
+        searcher = self._network.search_for_track(artist, title)
+        raw = self._call(
+            "track.search",
+            {"track": title, "artist": artist, "limit": limit},
+            searcher.get_next_page,
+        )
+        return [
+            {
+                "title": str(item.title),
+                "artist": str(item.artist),
+            }
+            for item in (raw or [])[:limit]
+        ]
+
     # ─── Loki ────────────────────────────────────────────────────────────────
 
     def log_summary(self) -> dict:

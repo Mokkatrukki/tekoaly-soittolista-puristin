@@ -80,6 +80,14 @@ tekoäly-soittolista-puristin/
 - Testattu: similar_artists, artist_tags, tag_top_tracks toimivat hyvin
 - Huomio: `similar_tracks` vaatii tarkan kappaleen nimen — joillakin kappaleilla ei riittävästi dataa
 
+### [2026-03-17] api/discogs.py + api/musicbrainz.py + api/listenbrainz.py + api/yle_areena.py
+- `api/discogs.py`: `DiscogsClient` — search_release, search_artist, search_master, release, master, artist, artist_releases. `ReleaseInfo` dataluokka: styles (tarkin genre-signaali), rating, have/want, tracklist. Testattu toimivaksi.
+- `api/musicbrainz.py`: `MusicBrainzClient` — search_recording, search_artist, recording (suhteet: cover of, remix of jne.), artist (member-of, influenced-by), artist_recordings. Ei API-avainta — User-Agent asetettu. Testattu: Daft Punk 1993–2021, jäsenet, tagit.
+- `api/listenbrainz.py`: `ListenBrainzClient` — recommendation_recordings (ML-suositukset), user_listens, user_top_artists, user_top_recordings. Huomio: mokkatrukki-tilillä 0 kuuntelua, testi palauttaa tyhjää — koodi on oikein.
+- `api/yle_areena.py`: `YleAreenaClient` — list_shows, show_episodes, episode_tracks, latest_tracks. Kappalelistan parsinta 3 formaatille (BIISILISTA-otsikko, Artisti - Kappale rivit, Artisti: Kappale). 19 tunnettua musiikkiohjelmaa MUSIC_SHOWS-sanakirjassa. `discover_shows()` testaa automaattisesti uusia ohjelmia Areenan musiikin kategorisivulta.
+- `direnv` käyttöön: `.envrc` aktivoi venv automaattisesti projektin kansiossa
+- `musicbrainzngs` ja `liblistenbrainz` lisätty venv:iin
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten

@@ -53,11 +53,16 @@ DOCS: dict[str, str] = {
     "lastfm.search_artist":         "https://www.last.fm/api/show/artist.search",
 
     # ─── DISCOGS ────────────────────────────────────────────────────────────
-    "discogs.search":               "https://www.discogs.com/developers#page:database,header:database-search",
-    "discogs.release":              "https://www.discogs.com/developers#page:database,header:database-release",
-    "discogs.artist":               "https://www.discogs.com/developers#page:database,header:database-artist",
-    "discogs.artist_releases":      "https://www.discogs.com/developers#page:database,header:database-artist-releases",
-    "discogs.master":               "https://www.discogs.com/developers#page:database,header:database-master-release",
+    # Discogs docs on SPA — käytetään suoria API-referenssi-URLeja
+    "discogs.search":               "https://www.discogs.com/developers/#database-search",
+    "discogs.release":              "https://www.discogs.com/developers/#database-release",
+    "discogs.artist":               "https://www.discogs.com/developers/#database-artist",
+    "discogs.artist_releases":      "https://www.discogs.com/developers/#database-artist-releases",
+    "discogs.master":               "https://www.discogs.com/developers/#database-master-release",
+    # Discogs REST API suoraan (testattavissa curl:lla)
+    "discogs.api_search":           "https://api.discogs.com/database/search",
+    "discogs.api_release":          "https://api.discogs.com/releases/249504",
+    "discogs.api_artist":           "https://api.discogs.com/artists/45",
 
     # ─── MUSICBRAINZ ────────────────────────────────────────────────────────
     "musicbrainz.search_recording": "https://musicbrainz.org/doc/MusicBrainz_API/Search#recording",
@@ -66,9 +71,11 @@ DOCS: dict[str, str] = {
     "musicbrainz.artist_rels":      "https://musicbrainz.org/doc/Artist_Relationship_Types",
 
     # ─── LISTENBRAINZ ───────────────────────────────────────────────────────
+    "listenbrainz.api_index":       "https://listenbrainz.readthedocs.io/en/latest/users/api/index.html",
     "listenbrainz.similar_artists": "https://listenbrainz.readthedocs.io/en/latest/users/api/recommendations.html",
     "listenbrainz.recordings_for_artist": "https://listenbrainz.readthedocs.io/en/latest/users/api/recordings.html",
     "listenbrainz.user_listens":    "https://listenbrainz.readthedocs.io/en/latest/users/api/listens.html",
+    "listenbrainz.stats":           "https://listenbrainz.readthedocs.io/en/latest/users/api/statistics.html",
 
     # ─── YLE AREENA ─────────────────────────────────────────────────────────
     "yle.search":                   "https://developer.yle.fi/en/index.html",
