@@ -145,7 +145,11 @@ def _aggressive_trim(text: str) -> str:
         # Kaikki muu: skipataan
         in_params = False
 
-    return "\n".join(result)
+    trimmed = "\n".join(result)
+    # Jos aggressive poisti lähes kaiken, palautetaan alkuperäinen
+    if len(trimmed.strip()) < len(text.strip()) * 0.15:
+        return text
+    return trimmed
 
 
 # ─── Pääfunktio ──────────────────────────────────────────────────────────────

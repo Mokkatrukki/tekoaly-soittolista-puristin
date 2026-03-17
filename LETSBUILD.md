@@ -73,6 +73,13 @@ tekoäly-soittolista-puristin/
 
 **Arkkitehtuurivaikutus:** Spotify = kohde + personalisointilähde. Discovery tulee kokonaan Last.fm + MusicBrainz + ListenBrainzista.
 
+### [2026-03-17] fetch_doc Playwright-fallback + api/lastfm.py
+- `fetch_doc` saa nyt JS-renderöidyt sivut (Playwright → trafilatura): trafilatura → httpx → Playwright
+- `distill` aggressive-fallback: jos >85% sisällöstä poistuisi, palautetaan alkuperäinen
+- `api/lastfm.py`: `similar_tracks`, `similar_artists`, `artist_top_tracks`, `artist_tags`, `track_info`, `tag_top_tracks`, `tag_top_artists`
+- Testattu: similar_artists, artist_tags, tag_top_tracks toimivat hyvin
+- Huomio: `similar_tracks` vaatii tarkan kappaleen nimen — joillakin kappaleilla ei riittävästi dataa
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten

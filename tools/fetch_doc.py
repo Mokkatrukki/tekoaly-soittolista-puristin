@@ -22,6 +22,55 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+_TRAFILATURA_OPTS = dict(
+    include_tables=True,
+    include_links=False,
+    include_formatting=True,
+    no_fallback=False,
+)
+
+
+def _fetch_content(url: str) -> str | None:
+    """
+    Hakee URL:n sisällön kolmella menetelmällä:
+    1. trafilatura.fetch_url  — nopein, ei JS
+    2. httpx + trafilatura    — fallback staattisille sivuille
+    3. Playwright + trafilatura — JS-renderöidyt sivut (Last.fm jne.)
+    """
+    # 1. trafilatura suoraan
+    downloaded = trafilatura.fetch_url(url)
+    if downloaded:
+        content = trafilatura.extract(downloaded, **_TRAFILATURA_OPTS)
+        if content and len(content) > 100:
+            return content
+
+    # 2. httpx
+    try:
+        resp = httpx.get(url, headers=HEADERS, follow_redirects=True, timeout=15)
+        resp.raise_for_status()
+        content = trafilatura.extract(resp.text, **_TRAFILATURA_OPTS)
+        if content and len(content) > 100:
+            return content
+    except httpx.HTTPError:
+        pass
+
+    # 3. Playwright — JS-renderöinti
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url, wait_until="networkidle", timeout=20000)
+            html = page.content()
+            browser.close()
+        content = trafilatura.extract(html, **_TRAFILATURA_OPTS)
+        if content and len(content) > 100:
+            return content
+    except Exception:
+        pass
+
+    return None
+
 
 def fetch_doc(url_or_key: str, output: str = "text", clean: bool = True, aggressive: bool = False) -> str:
     """
@@ -44,38 +93,12 @@ def fetch_doc(url_or_key: str, output: str = "text", clean: bool = True, aggress
         url = url_or_key
         key_used = url
 
-    # Yritä ensin trafilatura.fetch_url (osaa käsitellä redirectit + perustason JS)
-    downloaded = trafilatura.fetch_url(url)
-    content = None
-
-    if downloaded:
-        content = trafilatura.extract(
-            downloaded,
-            include_tables=True,
-            include_links=False,
-            include_formatting=True,
-            no_fallback=False,
-        )
-
-    # Fallback: httpx + trafilatura
-    if not content:
-        try:
-            resp = httpx.get(url, headers=HEADERS, follow_redirects=True, timeout=15)
-            resp.raise_for_status()
-            content = trafilatura.extract(
-                resp.text,
-                include_tables=True,
-                include_links=False,
-                include_formatting=True,
-            )
-        except httpx.HTTPError as e:
-            return f"[VIRHE] HTTP-haku epäonnistui: {e}\nURL: {url}"
+    content = _fetch_content(url)
 
     if not content:
         return (
-            f"[HUOM] Automaattinen parsinta ei onnistunut — sivu saattaa vaatia JS-renderöintiä.\n"
-            f"Avain: {key_used}\nURL: {url}\n\n"
-            f"Voit hakea sen manuaalisesti WebFetch-työkalulla."
+            f"[HUOM] Kaikki hakumenetelmät epäonnistuivat.\n"
+            f"Avain: {key_used}\nURL: {url}"
         )
 
     # Kohinanpoisto
