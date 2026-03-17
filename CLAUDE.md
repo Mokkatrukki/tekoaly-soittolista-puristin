@@ -122,12 +122,30 @@ print(token_estimate(puhdas))
 
 ## Kehitysperiaatteet
 
+### API-ensimmäinen filosofia (TÄRKEÄÄ)
+**APIen data on totuus. Oma tietämys maustaa, ei johda.**
+
+1. **Älä keksi päässä** — ei artisti- tai kappalelistan pähkäilyä ilman API-vahvistusta
+2. **Laaja haku ensin** — Last.fm `similar_artists`, Discogs `search_japan`, MusicBrainz tagit
+3. **Discogs vahvistaa laadun** — `community.want` = keräilyarvo = laatu-indikaattori
+4. **Last.fm vahvistaa suosion** — `playcount`, `listeners`, `artist_tags` kertovat tagit
+5. **Spotify viimeisenä** — vain URI:n löytämiseen, ei discovery-lähteenä
+
 ### Logiikka soittolistan rakentamisessa
 1. **Haastattelu** — kysy käyttäjältä: tunnelma, tilanne, referenssikappaleita, mitä EI haluta
-2. **Monilähteinen haku** — sama artisti/genre useasta lähteestä vahvistaa signaalia
-3. **Pisteytysjärjestelmä** — kappale saa pisteitä jokaisesta lähteestä joka sen ehdottaa
-4. **Deduplikaatio** — sama kappale eri lähteistä = 1 kappale korkeammalla pisteellä
-5. **Spotify-kirjasto** — tarkistetaan löytyykö kappale, haetaan URI, lisätään listaan
+2. **Laaja API-haku** — Last.fm `similar_artists` + `tag_top_tracks`, Discogs `search_japan`
+3. **Laadun suodatus** — Discogs want-arvo > 500 = merkittävä, > 2000 = klassikko
+4. **Monilähteinen vahvistus** — sama artisti useasta API:sta = vahva signaali
+5. **Pisteytysjärjestelmä** — kappale saa pisteitä jokaisesta lähteestä joka sen ehdottaa
+6. **Deduplikaatio** — sama kappale eri lähteistä = 1 kappale korkeammalla pisteellä
+7. **Spotify viimeisenä** — tarkistetaan löytyykö kappale, haetaan URI
+
+### API-rajoitukset ja tukeminen
+- **Discogs**: 60 req/min (token). Wrapper hoitaa rate limitin (1.1s/kutsu, autoretry 429)
+  - Hidas → täydennä Last.fm:llä ja MusicBrainzilla
+- **Last.fm**: ~5 req/s, ei ongelmia. Käytä tag-hakuja löytämiseen, similar_artists graphiin
+- **MusicBrainz**: ei API-avainta, mutta hidas. Käytä artistisuhteiden selvittämiseen
+- **Spotify**: Discovery-endpointit estetty (ks. yllä). Vain search + playlist management
 
 ### Logitus (logs/sessions/)
 Jokainen sessio lokataan JSON:iin:

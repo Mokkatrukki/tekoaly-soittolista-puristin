@@ -66,7 +66,13 @@ class ApiCall:
 class DiscogsClient:
     """
     Discogs-wrapper discogs_client:n päälle.
+
+    Rate limiting: 60 req/min autentikoituneille (token).
+    _rate_delay = 1.1s kutsujen välissä — turvallinen tahti.
+    Jos tulee 429, lisätään viive automaattisesti.
     """
+
+    _rate_delay: float = 1.1   # sekuntia kutsujen välissä
 
     def __init__(self) -> None:
         self._d = discogs_client.Client(
@@ -74,43 +80,66 @@ class DiscogsClient:
             user_token=os.getenv("DISCOGS_TOKEN"),
         )
         self.call_log: list[ApiCall] = []
+        self._last_call: float = 0.0
+
+    def _throttle(self) -> None:
+        """Odota tarvittaessa ennen seuraavaa kutsua."""
+        elapsed = time.monotonic() - self._last_call
+        wait = self._rate_delay - elapsed
+        if wait > 0:
+            time.sleep(wait)
 
     def _time(self, endpoint: str, params: dict, fn, *args, **kwargs):
+        self._throttle()
         t0 = time.monotonic()
         error = None
         result = None
-        try:
-            result = fn(*args, **kwargs)
-        except Exception as e:
-            error = str(e)
-            raise
-        finally:
-            latency = (time.monotonic() - t0) * 1000
-            count = len(result) if hasattr(result, "__len__") else 1
-            self.call_log.append(ApiCall(
-                endpoint=endpoint,
-                params=params,
-                result_count=count,
-                latency_ms=round(latency, 1),
-                error=error,
-            ))
+        retries = 0
+        while True:
+            try:
+                result = fn(*args, **kwargs)
+                break
+            except Exception as e:
+                error = str(e)
+                if "429" in str(e) and retries < 3:
+                    wait = 5 * (retries + 1)
+                    time.sleep(wait)
+                    retries += 1
+                    continue
+                raise
+            finally:
+                self._last_call = time.monotonic()
+        latency = (self._last_call - t0) * 1000
+        count = len(result) if hasattr(result, "__len__") else 1
+        self.call_log.append(ApiCall(
+            endpoint=endpoint,
+            params=params,
+            result_count=count,
+            latency_ms=round(latency, 1),
+            error=error,
+        ))
         return result
 
     # ─── Haku ────────────────────────────────────────────────────────────────
 
-    def search_release(self, query: str, limit: int = 5) -> list[dict]:
+    def search_release(self, query: str, limit: int = 5, country: str = "") -> list[dict]:
         """
         Hae releaseja hakusanalla.
-        Palauttaa: [{id, title, artist, year, genres, styles, country}]
-        Käytetään ensin Discogs-ID:n löytämiseen, sitten haetaan tarkemmat tiedot.
+        Palauttaa: [{id, title, year, genres, styles, country, community_have, community_want}]
+        community-data tulee search-tuloksista suoraan (ei vaadi ylimääräistä release()-kutsua).
         """
+        kwargs: dict = {"type": "release"}
+        if country:
+            kwargs["country"] = country
         results = self._time(
-            "database.search[release]", {"q": query, "type": "release", "limit": limit},
-            self._d.search, query, type="release",
+            "database.search[release]", {"q": query, "limit": limit, **kwargs},
+            self._d.search, query, **kwargs,
         )
         out = []
         for r in list(results)[:limit]:
             try:
+                d = r.data if hasattr(r, "data") and isinstance(r.data, dict) else {}
+                comm = d.get("community", {}) or {}
                 out.append({
                     "id": r.id,
                     "title": r.title,
@@ -118,10 +147,20 @@ class DiscogsClient:
                     "genres": list(getattr(r, "genres", []) or []),
                     "styles": list(getattr(r, "styles", []) or []),
                     "country": getattr(r, "country", ""),
+                    "community_have": int(comm.get("have", 0) or 0),
+                    "community_want": int(comm.get("want", 0) or 0),
                 })
             except Exception:
                 continue
         return out
+
+    def search_japan(self, query: str, limit: int = 5) -> list[dict]:
+        """
+        Oikotie: search_release jossa country=Japan.
+        Käyttö: japanilaisen musiikin haku — suodattaa pois muut versiot.
+        Palauttaa samat kentät kuin search_release, aina japanilaiset julkaisut.
+        """
+        return self.search_release(query, limit=limit, country="Japan")
 
     def search_artist(self, query: str, limit: int = 5) -> list[dict]:
         """
@@ -179,16 +218,18 @@ class DiscogsClient:
         artists = getattr(r, "artists", [])
         artist_name = artists[0].name if artists else "?"
 
-        community = getattr(r, "community", None)
+        # community-data on .data-dictissä, ei objektiattribuuteissa
+        community_data = {}
+        if hasattr(r, "data") and isinstance(r.data, dict):
+            community_data = r.data.get("community", {}) or {}
         rating = 0.0
         have = 0
         want = 0
-        if community:
-            rating_obj = getattr(community, "rating", None)
-            if rating_obj:
-                rating = float(getattr(rating_obj, "average", 0) or 0)
-            have = int(getattr(community, "have", 0) or 0)
-            want = int(getattr(community, "want", 0) or 0)
+        if community_data:
+            rating_dict = community_data.get("rating", {}) or {}
+            rating = float(rating_dict.get("average", 0) or 0)
+            have = int(community_data.get("have", 0) or 0)
+            want = int(community_data.get("want", 0) or 0)
 
         tracklist = []
         for t in (getattr(r, "tracklist", []) or []):

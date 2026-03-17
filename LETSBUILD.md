@@ -133,6 +133,30 @@ Inspiraationa Alice Labs/Solita "Embracing User Unpredictability" (2022) — ei 
 - `_recording_artist_rels(mbid)` hakee kappaleen artist-rels (tuottaja, äänittäjä jne.)
 - `_productions_by_artist(mbid)` käyttää `search_recordings(arid=mbid)` — `arid` on Lucene-kenttä joka löytää kaikki kappaleet joissa MBID esiintyy missä roolissa tahansa
 
+### [2026-03-17] keskiviikko-vol2 + API-ensimmäinen workflow + wrapper-korjaukset
+
+**Soittolista: "keskiviikko-vol2"** (35 kpl, Spotify playlist/5lEMWBiJiSmw6bXIxkY8QP)
+- Japanin musiikkiuniversumi — thematic arc: City Pop → YMO → Shibuya-kei → Jazz → Fishmans → Underground
+- Ensimmäinen versio pähkäilty päästä, toinen versio API-validoitu: Last.fm similar_artists + Discogs want-arvo
+
+**API-ensimmäinen oppiminen:**
+- Ensin Last.fm `similar_artists` seeder-artisteille (Fishmans, Pizzicato Five, YMO, Ryo Fukui, Number Girl, WEG)
+- Last.fm löysi: Hiroshi Suzuki, Jiro Inagaki, Shigeo Sekito, Supercar, ZAZEN BOYS, Jun Togawa, Miharu Koshi
+- Discogs `release()` + want-arvo vahvisti: Hiroshi Suzuki "Cat" ⭐4.81 / 3774 want, Jiro Inagaki "Funky Stuff" ⭐4.75 / 4607 want
+- 7 trackia vaihdettiin API-löydöillä — lopputulos parempi kuin pelkästä pääkopasta
+
+**Wrapper-korjaukset (api/discogs.py):**
+- `release()` community-data luki objektiattribuutteja → korjattu lukemaan `r.data['community']` dictistä
+- `search_release()` lisätty `community_have` + `community_want` suoraan hakutuloksiin
+- `country` parametri `search_release`:lle
+- Lisätty `search_japan(query)` — oikotie country=Japan -haulle
+- Rate limiter: `_throttle()` + autoretry 429 (max 3 kertaa, 5s/10s/15s viive)
+
+**Filosofiamuutos (CLAUDE.md päivitetty):**
+- API-ensimmäinen: Last.fm + Discogs → ehdotukset → Spotify URI viimeisenä
+- Discogs want > 500 = merkittävä, > 2000 = klassikko
+- Rate limit -tuki: kun Discogs hidastaa, täydennä Last.fm:llä ja MusicBrainzilla
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten

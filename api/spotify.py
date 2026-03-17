@@ -360,7 +360,7 @@ class SpotifyClient:
             "name": raw["name"],
             "description": raw.get("description", ""),
             "owner": raw["owner"]["display_name"],
-            "track_count": raw["tracks"]["total"],
+            "track_count": raw.get("tracks", {}).get("total", 0),
             "url": raw["external_urls"]["spotify"],
             "uri": raw["uri"],
             "public": raw.get("public", False),
@@ -378,8 +378,9 @@ class SpotifyClient:
             )
             items = raw.get("items", [])
             for item in items:
-                t = item.get("track")
-                if t and t.get("id"):
+                # Spotify palauttaa joko "track" tai "item" avaimella versiosta riippuen
+                t = item.get("track") or item.get("item")
+                if t and isinstance(t, dict) and t.get("id"):
                     tracks.append(_parse_track(t))
             if raw.get("next") is None:
                 break
