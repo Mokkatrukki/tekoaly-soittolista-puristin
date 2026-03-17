@@ -88,6 +88,13 @@ tekoäly-soittolista-puristin/
 - `direnv` käyttöön: `.envrc` aktivoi venv automaattisesti projektin kansiossa
 - `musicbrainzngs` ja `liblistenbrainz` lisätty venv:iin
 
+### [2026-03-17] api/finnish_charts.py — IFPI Suomi -listatietokanta
+- `data/ifpi_charts.db` kopioitu soittolista-suosittelija-projektista (19M, gitignore)
+- 155 000 riviä: singlet + albumit + radio, 2000–2025
+- `FinnishChartsClient`: `search`, `top_tracks`, `top_artists`, `artist_history`, `weekly_chart`
+- Pisteytysmalli: sija 1 = 20 pistettä/viikko, sija 20 = 1 piste/viikko
+- Ei verkkoyhteyttä — kaikki kyselyt paikalliseen SQLite:hen
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten
