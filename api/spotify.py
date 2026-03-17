@@ -311,11 +311,10 @@ class SpotifyClient:
         Luo uusi soittolista kirjautuneelle käyttäjälle.
         Palauttaa: {id, uri, url}
         """
-        user_id = self.current_user_id()
         raw = self._call(
             "create_playlist", {"name": name, "public": public},
-            self._sp.user_playlist_create,
-            user=user_id, name=name, public=public, description=description,
+            self._sp.current_user_playlist_create,
+            name=name, public=public, description=description,
         )
         return {
             "id": raw["id"],

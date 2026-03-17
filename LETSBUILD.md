@@ -95,6 +95,15 @@ tekoäly-soittolista-puristin/
 - Pisteytysmalli: sija 1 = 20 pistettä/viikko, sija 20 = 1 piste/viikko
 - Ei verkkoyhteyttä — kaikki kyselyt paikalliseen SQLite:hen
 
+### [2026-03-17] curator/playlist_builder.py — koko putki toimii
+- `PlaylistBuilder`: `add(tracks, source, weight)`, `rank(limit)`, `resolve(spotify, candidates)`, `create(spotify, name, uris)`, `save_session()`
+- Pisteytysmalli: lineaarinen lasku lähteen sisällä + painokerroin per lähde
+- Deduplikaatio normalisoinnilla: lowercase + erikoismerkit pois
+- `_extract()` tukee dict/dataluokka/tuple -formaatteja — toimii kaikkien API-wrapperien kanssa
+- `save_session()` tallentaa JSON-lokin `logs/sessions/`-kansioon
+- Korjattu: `create_playlist` käyttää nyt `current_user_playlist_create` (`/v1/me/playlists`) eikä `user_playlist_create` (`/v1/users/{id}/playlists`) — jälkimmäinen antaa 403
+- Testattu: 20/20 löytyi Spotifysta, soittolista luotu onnistuneesti
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten
