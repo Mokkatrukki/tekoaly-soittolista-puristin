@@ -25,8 +25,9 @@ from dataclasses import dataclass
 
 import discogs_client
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 USER_AGENT = "SoittolistaPuristin/0.1"
 
@@ -88,37 +89,67 @@ class DiscogsClient:
         wait = self._rate_delay - elapsed
         if wait > 0:
             time.sleep(wait)
+        self._last_call = time.monotonic()
 
-    def _time(self, endpoint: str, params: dict, fn, *args, **kwargs):
-        self._throttle()
-        t0 = time.monotonic()
-        error = None
-        result = None
+    def _fetch_with_retry(self, fn, *args, max_retries: int = 3, **kwargs):
+        """Kutsu fn retry-logiikalla 429-virheitä varten."""
         retries = 0
         while True:
+            self._throttle()
             try:
-                result = fn(*args, **kwargs)
-                break
+                return fn(*args, **kwargs)
             except Exception as e:
-                error = str(e)
-                if "429" in str(e) and retries < 3:
+                if "429" in str(e) and retries < max_retries:
                     wait = 5 * (retries + 1)
                     time.sleep(wait)
                     retries += 1
                     continue
                 raise
-            finally:
-                self._last_call = time.monotonic()
-        latency = (self._last_call - t0) * 1000
-        count = len(result) if hasattr(result, "__len__") else 1
-        self.call_log.append(ApiCall(
-            endpoint=endpoint,
-            params=params,
-            result_count=count,
-            latency_ms=round(latency, 1),
-            error=error,
-        ))
+
+    def _time(self, endpoint: str, params: dict, fn, *args, **kwargs):
+        t0 = time.monotonic()
+        error = None
+        result = None
+        try:
+            result = self._fetch_with_retry(fn, *args, **kwargs)
+        except Exception as e:
+            error = str(e)
+            raise
+        finally:
+            latency = (time.monotonic() - t0) * 1000
+            try:
+                count = len(result) if hasattr(result, "__len__") else 1
+            except Exception:
+                count = 0
+            self.call_log.append(ApiCall(
+                endpoint=endpoint,
+                params=params,
+                result_count=count,
+                latency_ms=round(latency, 1),
+                error=error,
+            ))
         return result
+
+    def _iter_results(self, results, limit: int) -> list:
+        """Iteroi lazy Discogs-hakutulokset throttlella ja 429-retrylla."""
+        out = []
+        retries = 0
+        while True:
+            try:
+                self._throttle()
+                for r in results:
+                    out.append(r)
+                    if len(out) >= limit:
+                        break
+                return out
+            except Exception as e:
+                if "429" in str(e) and retries < 3:
+                    wait = 5 * (retries + 1)
+                    time.sleep(wait)
+                    retries += 1
+                    out = []
+                    continue
+                raise
 
     # ─── Haku ────────────────────────────────────────────────────────────────
 
@@ -136,7 +167,7 @@ class DiscogsClient:
             self._d.search, query, **kwargs,
         )
         out = []
-        for r in list(results)[:limit]:
+        for r in self._iter_results(results, limit):
             try:
                 d = r.data if hasattr(r, "data") and isinstance(r.data, dict) else {}
                 comm = d.get("community", {}) or {}
@@ -172,7 +203,7 @@ class DiscogsClient:
             self._d.search, query, type="artist",
         )
         out = []
-        for r in list(results)[:limit]:
+        for r in self._iter_results(results, limit):
             try:
                 out.append({
                     "id": r.id,
@@ -192,7 +223,7 @@ class DiscogsClient:
             self._d.search, query, type="master",
         )
         out = []
-        for r in list(results)[:limit]:
+        for r in self._iter_results(results, limit):
             try:
                 out.append({
                     "id": r.id,

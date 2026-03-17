@@ -31,9 +31,10 @@ from typing import Any
 
 import spotipy
 from dotenv import load_dotenv
+from pathlib import Path
 from spotipy.oauth2 import SpotifyOAuth
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 SCOPES = " ".join([
     "playlist-modify-public",

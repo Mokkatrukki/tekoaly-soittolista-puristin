@@ -20,8 +20,9 @@ from dataclasses import dataclass, field
 
 import pylast
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 
 # ─── Dataluokat ──────────────────────────────────────────────────────────────
@@ -240,7 +241,7 @@ class LastFmClient:
             {
                 "artist": str(item.item.artist),
                 "title": str(item.item.title),
-                "rank": int(item.weight),
+                "rank": int(item.weight) if item.weight is not None else 0,
             }
             for item in (raw or [])
         ]
@@ -260,7 +261,7 @@ class LastFmClient:
         return [
             {
                 "name": str(item.item.name),
-                "rank": int(item.weight),
+                "rank": int(item.weight) if item.weight is not None else 0,
             }
             for item in (raw or [])
         ]

@@ -23,8 +23,9 @@ from dataclasses import dataclass
 
 import liblistenbrainz
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 LB_USERNAME = "mokkatrukki"   # oletuslukija jos ei anneta
 
