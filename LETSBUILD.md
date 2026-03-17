@@ -104,6 +104,21 @@ tekoäly-soittolista-puristin/
 - Korjattu: `create_playlist` käyttää nyt `current_user_playlist_create` (`/v1/me/playlists`) eikä `user_playlist_create` (`/v1/users/{id}/playlists`) — jälkimmäinen antaa 403
 - Testattu: 20/20 löytyi Spotifysta, soittolista luotu onnistuneesti
 
+### [2026-03-17] curator/interviewer.py — haastattelu + API-strategia
+
+Inspiraationa Alice Labs/Solita "Embracing User Unpredictability" (2022) — ei tiukka implementaatio vaan yleisilmapiiri:
+- Tunnelma ja tilanne ensin, ei genre
+- Käyttäjä voi olla eri "moodeissa": normal / expand / trail / escape
+
+**`PlaylistIntent`** — kaikki mitä haastattelusta selvisi (mood, situation, seed_artists, seed_genres, era, mode, ...)
+**`ApiStrategy`** — mitä API-kutsuja tehdään millä painoilla (lastfm_artist_seeds, musicbrainz_explore_relations, weights, ...)
+**`build_strategy(intent)`** — muuntaa intentin strategiaksi moodin mukaan:
+- expand: MusicBrainz-suhteet + Discogs-tyylit korostuvat, historia painottuu vähemmän
+- trail: MusicBrainz pääpainossa (suhde-navigointi), esim. "artistin elokuvasoundtrackit"
+- escape: ei Spotify-personalisointia, Last.fm-tagit tunnelma-ankkurina
+**`detect_mode(description)`** — arvailee moodin käyttäjän sanoista
+**`INTERVIEW_GUIDE`** — ei tiukka skripti, ilmapiiri: kysy tunnelma ensin, tunnista moodi, tiedä mitä EI haluta
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten
