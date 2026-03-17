@@ -45,6 +45,15 @@ tekoäly-soittolista-puristin/
 - Spotify-dokumentaatio kartoitettu: deprecated endpointit merkitty (recommendations, vanhat playlist-endpointit), audio_features toimii
 - Huomio: Spotify-sivut ovat sanatariseen verboosia, fetch toimii trafilaturalla ilman JS-renderöintiä
 
+### [2026-03-17] api/spotify.py + distill-parannukset
+- `SpotifyClient` — wrapper spotipy:n päälle, lokkaa kaikki kutsut (`call_log`)
+- `Track`, `AudioFeatures` dataluokat
+- Metodit: `search_tracks`, `search_artists`, `artist_top_tracks`, `related_artists`, `artist_info`, `audio_features`, `recommendations`, `available_genre_seeds`, `create_playlist`, `add_tracks`
+- `add_tracks` splitaa automaattisesti 100 kpl chunkeihin
+- `log_summary()` palauttaa session API-kutsut JSON-yhteenvetona
+- `distill.py`: deprecated-tarkistus korjattu (raakasisältö vs kenttätaso), Spotify legal boilerplate poistettu noiselistasta
+- Huomio: `recommendations` on deprecated mutta Spotify ilmaisee sen vain UI-badgellä, ei tekstissä — merkitty koodissa manuaalisesti
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten

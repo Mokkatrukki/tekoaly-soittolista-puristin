@@ -19,6 +19,13 @@ _NOISE: list[tuple[re.Pattern, str]] = [
     (re.compile(r"Spotify content may not be used to train.*?\.", re.IGNORECASE), ""),
     # "More information" ilman kontekstia
     (re.compile(r"^More information\s*$", re.MULTILINE), ""),
+    # Spotify usage policy / legal boilerplate
+    (re.compile(r"You may not facilitate downloads of Spotify content[^.]*\.", re.IGNORECASE), ""),
+    (re.compile(r"Spotify visual content must be kept in its original form[^.]*\.", re.IGNORECASE), ""),
+    (re.compile(r"you can not crop album artwork[^.]*\.", re.IGNORECASE), ""),
+    (re.compile(r"place a brand/logo on album artwork[^.]*\.", re.IGNORECASE), ""),
+    (re.compile(r"Please keep in mind that metadata.*?Spotify Service\.", re.IGNORECASE | re.DOTALL), ""),
+    (re.compile(r"You must also attribute content from Spotify[^.]*\.", re.IGNORECASE), ""),
     # Tyhjiä markdown-linkkejä
     (re.compile(r"\[.*?\]\(\s*\)"), ""),
     # Last.fm footer-kohina
@@ -73,10 +80,23 @@ def _collapse_backtick_lists(text: str) -> str:
     return text
 
 
-def _mark_deprecated(text: str) -> str:
-    if re.search(r"\bdeprecated\b", text, re.IGNORECASE):
-        return "⚠️  DEPRECATED\n\n" + text
-    return text
+def _mark_deprecated(raw_before_cleaning: str, cleaned: str) -> str:
+    """
+    Liputa endpoint deprecated:ksi vain jos koko endpoint on deprecated —
+    ei jos ainoastaan yksittäiset kentät ovat deprecated.
+    Tarkistus tehdään raakasisällöstä ennen kenttäparsintaa.
+    """
+    # Endpoint-tason deprecated: esiintyy otsikossa tai intro-kappaleessa
+    # eikä pelkästään kenttäkuvauksissa
+    intro = raw_before_cleaning[:800]
+    endpoint_deprecated = bool(re.search(
+        r"(this endpoint is deprecated|deprecated endpoint|"
+        r"\[DEPRECATED\]|endpoint.*?deprecated|deprecated.*?endpoint)",
+        intro, re.IGNORECASE,
+    ))
+    if endpoint_deprecated:
+        return "⚠️  DEPRECATED\n\n" + cleaned
+    return cleaned
 
 
 def _compress_whitespace(text: str) -> str:
@@ -130,7 +150,7 @@ def _aggressive_trim(text: str) -> str:
 
 # ─── Pääfunktio ──────────────────────────────────────────────────────────────
 
-def distill(raw: str, aggressive: bool = False) -> str:
+def distill(raw: str, aggressive: bool = False) -> str:  # noqa: C901
     """
     Poistaa kohinan API-dokumentaatiotekstistä.
 
@@ -153,8 +173,8 @@ def distill(raw: str, aggressive: bool = False) -> str:
     # 3. Kerää hajonneet backtick-listat yhdelle riville
     text = _collapse_backtick_lists(text)
 
-    # 4. Merkitse deprecated
-    text = _mark_deprecated(text)
+    # 4. Merkitse deprecated (verrataan raakatekstiin ennen siivousta)
+    text = _mark_deprecated(raw, text)
 
     # 5. Aggressiivinen tiivistys
     if aggressive:
