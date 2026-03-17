@@ -9,10 +9,19 @@ Endpointit joita käytetään:
   recommendations       → DEPRECATED mutta toimii — seed-pohjainen suosittelu
   create_playlist       → luo uusi soittolista käyttäjälle
   add_tracks            → lisää kappaleet soittolistaan
+  remove_tracks         → poista kappaleet soittolistasta
+  reorder_track         → siirrä kappale toiseen kohtaan soittolistalla
+  get_playlist          → hae soittolista ID:llä (referenssiksi)
+  get_playlist_tracks   → kaikki kappaleet soittolistalta
+  user_playlists        → käyttäjän omat soittolistat
+  recently_played       → viimeksi kuunnellut (max 50, scope: recently-played)
+  top_tracks            → eniten kuunnellut kappaleet (lyhyt/keski/pitkä aikaväli)
+  top_artists           → eniten kuunnellut artistit
   current_user          → kirjautuneen käyttäjän tiedot
 
 Auth: OAuth2 Authorization Code -flow, spotipy hoitaa token-cachetuksen.
-Scopes: playlist-modify-public, playlist-modify-private, user-read-private
+Scopes: playlist-modify-public, playlist-modify-private, user-read-private,
+        user-read-recently-played, user-top-read
 """
 
 import os
@@ -29,8 +38,12 @@ load_dotenv()
 SCOPES = " ".join([
     "playlist-modify-public",
     "playlist-modify-private",
+    "playlist-read-private",
+    "playlist-read-collaborative",
     "user-read-private",
     "user-read-email",
+    "user-read-recently-played",
+    "user-top-read",
 ])
 
 
@@ -105,6 +118,12 @@ class SpotifyClient:
             result = fn(*args, **kwargs)
         except spotipy.SpotifyException as e:
             error = str(e)
+            if "403" in str(e):
+                raise PermissionError(
+                    f"Spotify endpoint '{endpoint}' on estetty (403) Development mode -applikaatiolta. "
+                    "Nämä endpointit vaativat Extended Quota Moden tai ovat poistettu: "
+                    "recommendations, related_artists, artist_top_tracks, audio_features."
+                ) from e
             raise
         finally:
             latency = (time.monotonic() - t0) * 1000
@@ -227,19 +246,53 @@ class SpotifyClient:
             params["seed_genres"] = seed_genres
         params.update(audio_filters)
 
-        raw = self._call(
-            "recommendations[DEPRECATED]", params,
-            self._sp.recommendations, **params,
-        )
-        return [_parse_track(t) for t in raw["tracks"] if t]
+        try:
+            raw = self._call(
+                "recommendations[REMOVED]", params,
+                self._sp.recommendations, **params,
+            )
+            return [_parse_track(t) for t in raw["tracks"] if t]
+        except spotipy.SpotifyException as e:
+            if "404" in str(e):
+                raise NotImplementedError(
+                    "Spotify /recommendations endpoint on poistettu (404). "
+                    "Käytä Last.fm similar_tracks tai ListenBrainz suosituksiin."
+                ) from e
+            raise
 
     def available_genre_seeds(self) -> list[str]:
-        """Lista käytettävissä olevista genre-sedeistä recommendations-endpointille."""
-        raw = self._call(
-            "genre_seeds", {},
-            self._sp.recommendation_genre_seeds,
-        )
-        return raw["genres"]
+        """
+        Lista käytettävissä olevista genre-sedeistä recommendations-endpointille.
+        HUOM: /recommendations/available-genre-seeds endpoint on poistettu (404).
+        Palautetaan tunnettu lista — toimii recommendations-kutsuissa.
+        """
+        return [
+            "acoustic", "afrobeat", "alt-rock", "alternative", "ambient",
+            "anime", "black-metal", "bluegrass", "blues", "bossanova",
+            "brazil", "breakbeat", "british", "cantopop", "chicago-house",
+            "children", "chill", "classical", "club", "comedy",
+            "country", "dance", "dancehall", "death-metal", "deep-house",
+            "detroit-techno", "disco", "disney", "drum-and-bass", "dub",
+            "dubstep", "edm", "electro", "electronic", "emo",
+            "folk", "forro", "french", "funk", "garage",
+            "german", "gospel", "goth", "grindcore", "groove",
+            "grunge", "guitar", "happy", "hard-rock", "hardcore",
+            "hardstyle", "heavy-metal", "hip-hop", "holidays", "honky-tonk",
+            "house", "idm", "indian", "indie", "indie-pop",
+            "industrial", "iranian", "j-dance", "j-idol", "j-pop",
+            "j-rock", "jazz", "k-pop", "kids", "latin",
+            "latino", "malay", "mandopop", "metal", "metal-misc",
+            "metalcore", "minimal-techno", "movies", "mpb", "new-age",
+            "new-release", "opera", "pagode", "party", "philippines-opm",
+            "piano", "pop", "pop-film", "post-dubstep", "power-pop",
+            "progressive-house", "psych-rock", "punk", "punk-rock", "r-n-b",
+            "rainy-day", "reggae", "reggaeton", "road-trip", "rock",
+            "rock-n-roll", "rockabilly", "romance", "sad", "salsa",
+            "samba", "sertanejo", "show-tunes", "singer-songwriter", "ska",
+            "sleep", "songwriter", "soul", "soundtracks", "spanish",
+            "study", "summer", "swedish", "synth-pop", "tango",
+            "techno", "trance", "trip-hop", "turkish", "work-out", "world-music",
+        ]
 
     # ─── Soittolista ─────────────────────────────────────────────────────────
 
@@ -272,14 +325,140 @@ class SpotifyClient:
         }
 
     def add_tracks(self, playlist_id: str, track_uris: list[str]) -> None:
-        """
-        Lisää kappaleet soittolistaan. Max 100 per kutsu — splitataan automaattisesti.
-        """
+        """Lisää kappaleet soittolistaan. Max 100 per kutsu — splitataan automaattisesti."""
         for chunk in _chunks(track_uris, 100):
             self._call(
                 "add_items_to_playlist", {"playlist_id": playlist_id, "count": len(chunk)},
                 self._sp.playlist_add_items, playlist_id, chunk,
             )
+
+    def remove_tracks(self, playlist_id: str, track_uris: list[str]) -> None:
+        """Poista kappaleet soittolistasta URI-listan perusteella."""
+        for chunk in _chunks(track_uris, 100):
+            self._call(
+                "remove_playlist_items", {"playlist_id": playlist_id, "count": len(chunk)},
+                self._sp.playlist_remove_all_occurrences_of_items, playlist_id, chunk,
+            )
+
+    def reorder_track(self, playlist_id: str, from_pos: int, to_pos: int) -> None:
+        """Siirrä kappale pozitsiosta from_pos pozistioon to_pos."""
+        self._call(
+            "reorder_playlist", {"playlist_id": playlist_id, "from": from_pos, "to": to_pos},
+            self._sp.playlist_reorder_items, playlist_id, from_pos, to_pos,
+        )
+
+    def get_playlist(self, playlist_id: str) -> dict:
+        """
+        Hae soittolista ID:llä. Käytetään referenssiksi ("tehtiin X soittolista").
+        Palauttaa: {id, name, description, owner, track_count, url}
+        """
+        raw = self._call(
+            "get_playlist", {"playlist_id": playlist_id},
+            self._sp.playlist, playlist_id,
+        )
+        return {
+            "id": raw["id"],
+            "name": raw["name"],
+            "description": raw.get("description", ""),
+            "owner": raw["owner"]["display_name"],
+            "track_count": raw["tracks"]["total"],
+            "url": raw["external_urls"]["spotify"],
+            "uri": raw["uri"],
+            "public": raw.get("public", False),
+        }
+
+    def get_playlist_tracks(self, playlist_id: str, limit: int = 100) -> list[Track]:
+        """Hae kaikki kappaleet soittolistalta (hakee kaikki sivut automaattisesti)."""
+        tracks = []
+        offset = 0
+        while True:
+            raw = self._call(
+                "get_playlist_items",
+                {"playlist_id": playlist_id, "offset": offset, "limit": limit},
+                self._sp.playlist_items, playlist_id, limit=limit, offset=offset,
+            )
+            items = raw.get("items", [])
+            for item in items:
+                t = item.get("track")
+                if t and t.get("id"):
+                    tracks.append(_parse_track(t))
+            if raw.get("next") is None:
+                break
+            offset += limit
+        return tracks
+
+    def user_playlists(self, limit: int = 50) -> list[dict]:
+        """
+        Käyttäjän omat soittolistat. Käytetään referenssiksi —
+        "tehtiin X soittolista" → haetaan ID nimellä.
+        """
+        raw = self._call(
+            "user_playlists", {"limit": limit},
+            self._sp.current_user_playlists, limit=limit,
+        )
+        return [
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "description": p.get("description", ""),
+                "url": p.get("external_urls", {}).get("spotify", ""),
+                "public": p.get("public", False),
+            }
+            for p in raw["items"] if p
+        ]
+
+    def find_playlist_by_name(self, name: str) -> dict | None:
+        """Etsi soittolista nimellä käyttäjän listoista. Palauttaa ensimmäisen osuman tai None."""
+        playlists = self.user_playlists(limit=50)
+        name_lower = name.lower()
+        for p in playlists:
+            if name_lower in p["name"].lower():
+                return p
+        return None
+
+    # ─── Kuunteluhistoria ─────────────────────────────────────────────────────
+
+    def recently_played(self, limit: int = 50) -> list[dict]:
+        """
+        Viimeksi kuunnellut kappaleet (max 50).
+        Scope: user-read-recently-played
+        Palauttaa: [{track, played_at}]
+        """
+        raw = self._call(
+            "recently_played", {"limit": limit},
+            self._sp.current_user_recently_played, limit=limit,
+        )
+        return [
+            {
+                "track": _parse_track(item["track"]),
+                "played_at": item["played_at"],
+            }
+            for item in raw.get("items", []) if item.get("track")
+        ]
+
+    def top_tracks(self, time_range: str = "medium_term", limit: int = 50) -> list[Track]:
+        """
+        Eniten kuunnellut kappaleet.
+        time_range: "short_term" (4vk) | "medium_term" (6kk) | "long_term" (vuosia)
+        Scope: user-top-read
+        """
+        raw = self._call(
+            "top_tracks", {"time_range": time_range, "limit": limit},
+            self._sp.current_user_top_tracks, time_range=time_range, limit=limit,
+        )
+        return [_parse_track(t) for t in raw.get("items", []) if t]
+
+    def top_artists(self, time_range: str = "medium_term", limit: int = 20) -> list[dict]:
+        """
+        Eniten kuunnellut artistit.
+        time_range: "short_term" (4vk) | "medium_term" (6kk) | "long_term" (vuosia)
+        Scope: user-top-read
+        """
+        raw = self._call(
+            "top_artists", {"time_range": time_range, "limit": limit},
+            self._sp.current_user_top_artists, time_range=time_range, limit=limit,
+        )
+        return [_parse_artist(a) for a in raw.get("items", []) if a]
 
     # ─── Loki ────────────────────────────────────────────────────────────────
 

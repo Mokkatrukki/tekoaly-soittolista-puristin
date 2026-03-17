@@ -54,6 +54,25 @@ tekoäly-soittolista-puristin/
 - `distill.py`: deprecated-tarkistus korjattu (raakasisältö vs kenttätaso), Spotify legal boilerplate poistettu noiselistasta
 - Huomio: `recommendations` on deprecated mutta Spotify ilmaisee sen vain UI-badgellä, ei tekstissä — merkitty koodissa manuaalisesti
 
+### [2026-03-17] Spotify API -kartoitus + soittolistan hallinta
+- Lisätty: `remove_tracks`, `reorder_track`, `get_playlist`, `get_playlist_tracks`, `user_playlists`, `find_playlist_by_name`
+- Lisätty: `recently_played`, `top_tracks`, `top_artists` (scopet: user-read-recently-played, user-top-read, playlist-read-private)
+- Kartoitettu käytännössä mitkä endpointit toimivat Development mode -applikaatiolla
+
+**KRIITTINEN LÖYDÖS: Spotify on blokannut discovery-endpointit Development mode -applikaatioilta**
+- ❌ `/recommendations` — poistettu (404)
+- ❌ `/artists/{id}/related-artists` — estetty (403)
+- ❌ `/artists/{id}/top-tracks` — estetty (403)
+- ❌ `/audio-features` — estetty (403)
+- ❌ `/recommendations/available-genre-seeds` — poistettu (404)
+
+**Toimii ✓**
+- ✅ `search` (tracks + artists)
+- ✅ `recently_played`, `top_tracks`, `top_artists` (käyttäjän oma data)
+- ✅ Soittolistan hallinta: `create_playlist`, `add_tracks`, `remove_tracks`, `user_playlists`
+
+**Arkkitehtuurivaikutus:** Spotify = kohde + personalisointilähde. Discovery tulee kokonaan Last.fm + MusicBrainz + ListenBrainzista.
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten

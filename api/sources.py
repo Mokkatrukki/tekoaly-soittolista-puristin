@@ -32,7 +32,14 @@ DOCS: dict[str, str] = {
 
     # Käyttäjä
     "spotify.current_user":         "https://developer.spotify.com/documentation/web-api/reference/get-current-users-profile",
-    "spotify.user_playlists":       "https://developer.spotify.com/documentation/web-api/reference/get-list-of-current-users-playlists",
+    "spotify.user_playlists":       "https://developer.spotify.com/documentation/web-api/reference/get-a-list-of-current-users-playlists",
+    "spotify.remove_playlist_items":"https://developer.spotify.com/documentation/web-api/reference/remove-tracks-playlist",
+    "spotify.reorder_playlist":     "https://developer.spotify.com/documentation/web-api/reference/reorder-or-replace-a-playlists-items",
+    "spotify.get_playlist_items":   "https://developer.spotify.com/documentation/web-api/reference/get-playlists-items",
+    # Kuunteluhistoria
+    "spotify.recently_played":      "https://developer.spotify.com/documentation/web-api/reference/get-recently-played",
+    "spotify.top_tracks":           "https://developer.spotify.com/documentation/web-api/reference/get-users-top-artists-and-tracks",
+    "spotify.top_artists":          "https://developer.spotify.com/documentation/web-api/reference/get-users-top-artists-and-tracks",
 
     # ─── LAST.FM ────────────────────────────────────────────────────────────
     "lastfm.similar_tracks":        "https://www.last.fm/api/show/track.getSimilar",

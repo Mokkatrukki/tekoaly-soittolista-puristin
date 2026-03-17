@@ -94,10 +94,23 @@ print(token_estimate(puhdas))
 
 ## Tärkeät huomiot Spotify-rajapinnasta
 
-- `GET /recommendations` — **DEPRECATED** mutta toimii edelleen, käytetään
-- `GET /audio-features/{id}` — toimii normaalisti
-- Vanhat playlist-endpointit deprecated — käytetään uusia (`add-items-to-playlist`)
-- `preview_url`, `popularity`, `available_markets` responseissa deprecated
+**⚠️ Spotify blokkaa Discovery-endpointit Development mode -applikaatioilta (testattu 2026-03-17):**
+- ❌ `/recommendations` — poistettu (404) — käytä Last.fm/ListenBrainz
+- ❌ `/artists/{id}/related-artists` — estetty (403)
+- ❌ `/artists/{id}/top-tracks` — estetty (403)
+- ❌ `/audio-features` — estetty (403)
+- ❌ `/recommendations/available-genre-seeds` — poistettu (404)
+
+**✅ Toimii Development modessa:**
+- `search` (tracks + artists) — käytetään kappaleiden löytämiseen nimellä
+- `recently_played`, `top_tracks`, `top_artists` — käyttäjän kuunteludata personalisointiin
+- Soittolistan hallinta: `create_playlist`, `add_tracks`, `remove_tracks`, `get_playlist`, `user_playlists`
+
+**Arkkitehtuurivaikutus:**
+- Spotify = kohde (soittolista luodaan sinne) + personalisointilähde (mitä käyttäjä on kuunnellut)
+- Discovery = Last.fm `track.getSimilar` + `artist.getSimilar`, ListenBrainz, MusicBrainz
+- Spotify `search` käytetään vain löydettyjen kappaleiden URI:n hakemiseen
+
 - Spotify-sisältöä **ei saa käyttää** ML/AI-mallien kouluttamiseen (lisenssi)
 
 ## Git
