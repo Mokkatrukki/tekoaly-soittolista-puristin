@@ -188,6 +188,37 @@ Inspiraationa Alice Labs/Solita "Embracing User Unpredictability" (2022) — ei 
 - Lisätty "API-wrapperit — oikea käyttö" -osio esimerkkikoodeineen
 - Selkeyttää oikeat paluumuodot per metodi (dict vs objekti), community_want-kynnykset (>2000 klassikko), sisäisen asiakkaan `sp._sp` vs väärä `sp.sp`
 
+### [2026-03-18] api/wikipedia.py — Wikipedia & Wikidata -wrapper
+
+**Motivaatio:** Tutkittiin mistä elokuvien soundtrackit löytyvät (TMDB ei, Tunefind maksullinen) → Wikipedia API ilmainen ja kattava.
+
+**Wikipedia Action API:**
+- `get_article(title)` — raaka wikitext
+- `get_section(title, section_keyword)` — tietty osio
+- `get_infobox(title)` — infobox dict:ksi parsittuna
+- `get_tracklist(movie_title)` — soundtrack-tracklist, kokeilee automaattisesti `"[nimi] (soundtrack)"`, `"(film score)"` jne.
+- `search(query, limit)` — artikkelien haku
+- `_parse_track_listing()` — parsii `{{Track listing}}` -templaten: title/extra/length per raita, tukee useita blokkeja (levy A/B)
+
+**Wikidata SPARQL:**
+- `sparql(query)` — raaka SPARQL käytettävissä
+- `oscar_winners(category, year_from, year_to)` — Best Picture / Original Score / Original Song / Director / Actor / Actress
+- `artists_by_genre(genre, country)` — genre + maa -suodatus
+- `film_info(film_title)` — vuosi, ohjaaja, säveltäjä, genre
+
+**Testattu toimivaksi:**
+- `get_tracklist("Seven")` → 27 kappaletta (soundtrack + score-albumit)
+- `get_tracklist("Oppenheimer")` → 24 kappaletta (Ludwig Göransson)
+- `oscar_winners("best_picture", 2018)` → siisti lista, vain elokuvat (ei tuottajia)
+- `oscar_winners("best_original_score", 2020)` → säveltäjä per vuosi
+- `oscar_winners("best_original_song", 2022)` → artistit
+
+**Oikeat Wikidata ID:t Oscar-palkinnoille (korjattu kesken session):**
+- Best Original Score: `Q488651` (ei Q106278)
+- Best Original Song: `Q112243` (ei Q106746)
+
+**Ei API-avaimia.** Rate limit: Wikipedia ~200 req/s, Wikidata SPARQL reilu.
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten
