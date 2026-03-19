@@ -21,7 +21,10 @@ User-Agent vaaditaan: asetetaan automaattisesti
 
 import os
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from threading import Lock
+from typing import Callable
 
 import discogs_client
 from dotenv import load_dotenv
@@ -82,14 +85,16 @@ class DiscogsClient:
         )
         self.call_log: list[ApiCall] = []
         self._last_call: float = 0.0
+        self._lock = Lock()  # throttle on thread-safe
 
     def _throttle(self) -> None:
-        """Odota tarvittaessa ennen seuraavaa kutsua."""
-        elapsed = time.monotonic() - self._last_call
-        wait = self._rate_delay - elapsed
-        if wait > 0:
-            time.sleep(wait)
-        self._last_call = time.monotonic()
+        """Odota tarvittaessa ennen seuraavaa kutsua. Thread-safe."""
+        with self._lock:
+            elapsed = time.monotonic() - self._last_call
+            wait = self._rate_delay - elapsed
+            if wait > 0:
+                time.sleep(wait)
+            self._last_call = time.monotonic()
 
     def _fetch_with_retry(self, fn, *args, max_retries: int = 3, **kwargs):
         """Kutsu fn retry-logiikalla 429-virheitä varten."""
@@ -566,6 +571,60 @@ class DiscogsClient:
             except Exception:
                 continue
         return out
+
+    # ─── Taustahaut — ei blokkaa pääsäiettä ─────────────────────────────────
+
+    def search_background(
+        self,
+        queries: list[str | tuple[str, int]],
+        method: str = "search",
+    ) -> dict[str, "Future[list[dict]]"]:
+        """
+        Käynnistä useita Discogs-hakuja taustasäikeissä.
+        Palauttaa Futuret heti — pääsäie voi jatkaa Last.fm/Spotify-hakuihin.
+        Tulokset haetaan myöhemmin future.result()-kutsulla.
+
+        Käyttö:
+            # Käynnistä taustalle
+            futures = dc.search_background([
+                ('Burial Untrue', 3),
+                ('Jon Hopkins Immunity', 2),
+                ('Boards of Canada', 2),
+            ])
+
+            # Tee muut haut (Last.fm jne.) tässä välissä...
+            similar = lfm.similar_artists('Burial', limit=20)
+
+            # Nouda Discogs-tulokset vasta lopussa
+            for query, fut in futures.items():
+                results = fut.result()  # blokkaa vain jos ei vielä valmis
+                print(query, results)
+
+        queries: lista stringejä tai (query, limit) -tupleja
+        method:  "search" | "search_master" | "search_artist"
+        """
+        # Normalisoi: kaikki (query, limit) -tupleiksi
+        normalized: list[tuple[str, int]] = []
+        for q in queries:
+            if isinstance(q, str):
+                normalized.append((q, 3))
+            else:
+                normalized.append(q)
+
+        fn: Callable = {
+            "search": self.search,
+            "search_master": self.search_master,
+            "search_artist": self.search_artist,
+        }.get(method, self.search)
+
+        # Yksisäikeinen executor: rate limit hoituu luonnollisesti
+        # (ei useita rinnakkaisia kutusja jotka sotketaan throttlen kanssa)
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="discogs_bg")
+        futures: dict[str, Future] = {}
+        for query, limit in normalized:
+            futures[query] = executor.submit(fn, query, limit)
+        executor.shutdown(wait=False)  # ei blokkaa — futures elävät omillaan
+        return futures
 
     # ─── Loki ────────────────────────────────────────────────────────────────
 

@@ -142,7 +142,29 @@ print(token_estimate(puhdas))
 
 ### API-rajoitukset ja tukeminen
 - **Discogs**: 60 req/min (token). Wrapper hoitaa rate limitin (1.1s/kutsu, autoretry 429)
-  - Hidas → täydennä Last.fm:llä ja MusicBrainzilla
+  - **⚠️ HIDAS — käytä `search_background()` niin se ei blokkaa muuta hakua!**
+  - Oikea tapa: käynnistä Discogs taustalle → tee Last.fm-haut → nouda Discogs-tulokset vasta lopussa
+
+```python
+# ✅ OIKEIN — Discogs taustalla, ei blokkaa
+futures = dc.search_background([
+    ('Burial Untrue', 3),
+    ('Jon Hopkins Immunity', 2),
+    ('Boards of Canada Music Has the Right to Children', 2),
+])
+# Tee Last.fm-haut tässä välissä (Discogs pyörii taustalla)
+similar = lfm.similar_artists('Burial', limit=20)
+tag_tracks = lfm.tag_top_tracks('ambient', limit=20)
+# Nouda Discogs-tulokset vasta kun tarvitaan
+for query, fut in futures.items():
+    results = fut.result()  # blokkaa vain jos ei vielä valmis
+    for r in results:
+        print(r['title'], r['community_want'])
+
+# ❌ VÄÄRIN — jokainen haku blokkaa 1.2s
+for album in albums:
+    results = dc.search(album, limit=2)  # odottaa 1.2s per kutsu
+```
 - **Last.fm**: ~5 req/s, ei ongelmia. Käytä tag-hakuja löytämiseen, similar_artists graphiin
 - **MusicBrainz**: ei API-avainta, mutta hidas. Käytä artistisuhteiden selvittämiseen
 - **Spotify**: Discovery-endpointit estetty (ks. yllä). Vain search + playlist management

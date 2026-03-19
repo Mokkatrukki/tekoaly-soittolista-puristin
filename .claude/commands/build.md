@@ -56,13 +56,30 @@ for tag in strategy.lastfm_tags:
     tag_tracks = lfm.tag_top_tracks(tag, limit=20)
     builder.add(tag_tracks, source=f"lastfm_tag_{tag}", weight=strategy.weights["lastfm_tags"])
 
-# Discogs — producer_graph (trail/expand -moodi tai jos tuottaja mainittu)
+# Discogs — käynnistä TAUSTALLE ennen Last.fm-hakuja (1.2s/kutsu — ei saa blokata)
+# Validointi: album want-luvut laadun indikaattorina
+discogs_futures = {}
+if strategy.discogs_albums_to_validate:
+    discogs_futures = dc.search_background([
+        (f"{artist} {album}", 2)
+        for artist, album in strategy.discogs_albums_to_validate[:8]
+    ])
+# producer_graph (trail/expand -moodi) — tämäkin taustalle jos mahdollista
 if strategy.discogs_search_query:
     pg = dc.producer_graph(strategy.discogs_search_query)
     for producer in pg.get("producers", []):
         for artist_name in producer["other_artists"][:10]:
             top = lfm.artist_top_tracks(artist_name, limit=5)
             builder.add(top, source="discogs_producer_network", weight=strategy.weights["discogs"])
+
+# ... (Last.fm-haut) ...
+
+# Nouda Discogs-tulokset lopussa (blokkaa vain jos ei vielä valmis)
+for query, fut in discogs_futures.items():
+    for r in fut.result():
+        # want > 500 = merkittävä, > 2000 = klassikko
+        if r["community_want"] > 500:
+            builder.boost(r["title"], bonus=r["community_want"] / 1000)
 
 # MusicBrainz — suhteet (expand/trail)
 if strategy.musicbrainz_explore_relations:
@@ -145,11 +162,26 @@ tags = lfm.artist_tags("Ben Howard", limit=5)   # → ["folk", "singer-songwrite
 from api.discogs import DiscogsClient
 dc = DiscogsClient()
 
-# search() on alias search_release:lle — käytä tätä
+# ⚠️ DISCOGS ON HIDAS (1.2s/kutsu) — käytä AINA search_background() niin se ei blokkaa!
+
+# ✅ OIKEA TAPA: käynnistä taustalle heti, tee Last.fm-haut sen aikana
+futures = dc.search_background([
+    ('Burial Untrue', 3),
+    ('Jon Hopkins Immunity', 2),
+    ('Boards of Canada Music Has the Right to Children', 2),
+])
+# Last.fm ja Spotify -haut tässä välissä — Discogs pyörii taustalla
+similar = lfm.similar_artists('Burial', limit=20)
+tag_tracks = lfm.tag_top_tracks('ambient', limit=20)
+# Nouda tulokset vasta kun tarvitaan
+for query, fut in futures.items():
+    results = fut.result()
+    for r in results:
+        print(r["title"], r["community_want"])
+
+# Synkroninen haku (vain jos YKSI kutsu eikä muuta tehtävää sen aikana)
 results = dc.search("Damien Rice O", limit=3)
 # → [{id, title, year, genres, styles, country, community_have, community_want}]
-for r in results:
-    print(r["title"], r["community_want"])   # want = keräilyarvo = laatu-indikaattori
 
 # Laadun kynnykset:
 #   community_want > 2000 → klassikko ★★★

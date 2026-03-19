@@ -219,6 +219,27 @@ Inspiraationa Alice Labs/Solita "Embracing User Unpredictability" (2022) — ei 
 
 **Ei API-avaimia.** Rate limit: Wikipedia ~200 req/s, Wikidata SPARQL reilu.
 
+### [2026-03-19] Soittolista "3 aamulla, Godot auki" + Discogs taustahaku
+
+**Soittolista:** "3 aamulla, Godot auki" (30 kpl, https://open.spotify.com/playlist/1IbSicYIu67QTGguj10sWh)
+- Tunnelma: uneton yö, flow-tila koodatessa / pelinkehitys, ei top-hittejä
+- Genret: ambient · IDM · dream pop · chillwave · post-rock
+- API-ensin: Last.fm tag-haut (ambient, chillwave, dream pop, lo-fi, IDM, late night) + similar_artists (Boards of Canada, Jon Hopkins, Tycho, Four Tet, Nils Frahm, Burial jne.)
+- Discogs validoi albumien laadun: Burial Untrue want=7133, Slowdive Souvlaki want=5239, BOC want=4918
+- Kaikki 30 löytyivät Spotifysta (0 ei löydettyä)
+- Suunnitelmallinen syvyys: skipattu rank 1–3 per artisti, haettu rank 4–10 jotta kuuntelija löytää hitit itse
+
+**Kappaleet (30):** Boards of Canada (Dayvan Cowboy, Music Is Math), Jon Hopkins (Lost in Thought, Abandon Window), Burial (Near Dark, Endorphin), Floating Points (Bias), Rival Consoles (Odyssey), Ólafur Arnalds (Tomorrow's Song), Grouper (Living Room), Cocteau Twins (Lorelei), Slowdive (40 Days), Bonobo (Terrapin), Emancipator (Dusk To Dawn), Ulrich Schnauss (A Letter From Home), A Winged Victory for the Sullen (All Farewells Are Sudden), Casino Versus Japan (Aquarium), Oneohtrix Point Never (Boring Angel), Helios (Halving the Compass), Hania Rani (At Dawn), Gidge (Huldra), Niklas Paschburg (Dawn), Com Truise (Propagation), Washed Out (Eyes Be Closed), Wild Nothing (Live In Dreams), The Radio Dept. (Closing Scene), Apparat (Hailin From the Edge), Tim Hecker (Boreal Kiss Pt. 1), Stars of the Lid (Don't Bother They're Here), DIIV (Past Lives)
+
+**Discogs taustahaku — `api/discogs.py` uusi metodi:**
+- `search_background(queries)` — käynnistää haut `ThreadPoolExecutor(max_workers=1)` taustasäikeessä
+- Palauttaa `dict[str, Future]` heti — pääsäie voi jatkaa Last.fm/Spotify-hakuihin
+- `_throttle()` tehty thread-safe (`Lock`-lukon avulla)
+- Yksisäikeinen executor: rate limit hoituu luonnollisesti (ei rinnakkaisia kutsuja jotka sotketaan)
+- Dokumentoitu CLAUDE.md:ään ja `/build`-skilliin oikeana käyttötapana
+
+**Muuttuneet tiedostot:** `api/discogs.py` (search_background + Lock + thread-safe throttle), `CLAUDE.md` (Discogs taustahaku -ohje koodiesimerkin kanssa), `.claude/commands/build.md` (Discogs-osio päivitetty oikeaan käyttötapaan)
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten

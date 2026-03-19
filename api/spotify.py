@@ -45,6 +45,9 @@ SCOPES = " ".join([
     "user-read-email",
     "user-read-recently-played",
     "user-top-read",
+    "user-read-playback-state",
+    "user-modify-playback-state",
+    "user-library-read",
 ])
 
 
@@ -460,6 +463,63 @@ class SpotifyClient:
             self._sp.current_user_top_artists, time_range=time_range, limit=limit,
         )
         return [_parse_artist(a) for a in raw.get("items", []) if a]
+
+    # ─── Toistohallinta ───────────────────────────────────────────────────────
+
+    def currently_playing(self) -> dict | None:
+        """
+        Mitä soi juuri nyt.
+        Palauttaa: {track, is_playing, progress_ms, device} tai None jos ei soi.
+        Scope: user-read-playback-state
+        """
+        raw = self._call("currently_playing", {}, self._sp.currently_playing)
+        if not raw or not raw.get("item"):
+            return None
+        return {
+            "track": _parse_track(raw["item"]),
+            "is_playing": raw.get("is_playing", False),
+            "progress_ms": raw.get("progress_ms", 0),
+            "device": raw.get("device", {}).get("name", "?"),
+        }
+
+    def queue_track(self, uri: str) -> None:
+        """
+        Lisää kappale Spotifyn jonoon (soi nykyisen jälkeen).
+        uri: Spotify track URI, esim. "spotify:track:4iV5W9uYEdYUVa79Axb7Rh"
+        Scope: user-modify-playback-state
+        Vaatii aktiivisen laitteen (Spotify auki).
+        """
+        self._call("add_to_queue", {"uri": uri}, self._sp.add_to_queue, uri)
+
+    def play_now(self, uris: list[str]) -> None:
+        """
+        Aloita toisto välittömästi annetuilla kappaleilla.
+        uris: lista Spotify track URI:eja — toistetaan järjestyksessä.
+        Scope: user-modify-playback-state
+        Vaatii aktiivisen laitteen.
+        """
+        self._call(
+            "start_playback", {"uris": uris},
+            self._sp.start_playback, uris=uris,
+        )
+
+    def active_devices(self) -> list[dict]:
+        """
+        Lista aktiivisista Spotify-laitteista.
+        Palauttaa: [{id, name, type, is_active, volume_percent}]
+        Scope: user-read-playback-state
+        """
+        raw = self._call("devices", {}, self._sp.devices)
+        return [
+            {
+                "id": d["id"],
+                "name": d["name"],
+                "type": d["type"],
+                "is_active": d["is_active"],
+                "volume_percent": d.get("volume_percent", 0),
+            }
+            for d in (raw or {}).get("devices", [])
+        ]
 
     # ─── Loki ────────────────────────────────────────────────────────────────
 

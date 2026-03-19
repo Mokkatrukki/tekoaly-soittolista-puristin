@@ -152,6 +152,29 @@ def get_infobox(title: str) -> dict:
     return result
 
 
+def get_genre_info(genre_title: str) -> dict:
+    """
+    Hae musiikkigenren tiedot Wikipedia-infoboxista.
+    genre_title: artikkelin nimi, esim. "Funk", "Acid jazz", "Go-go (music)"
+
+    Palauttaa: {
+        name, cultural_origins, stylistic_origins,
+        subgenres, fusiongenres, derivatives   ← pilkulla eroteltu string
+    }
+    """
+    box = get_infobox(genre_title)
+    if not box:
+        return {}
+    return {
+        "name":              box.get("name", genre_title),
+        "cultural_origins":  box.get("cultural_origins", ""),
+        "stylistic_origins": box.get("stylistic_origins", ""),
+        "subgenres":         box.get("subgenres", ""),
+        "fusiongenres":      box.get("fusiongenres", ""),
+        "derivatives":       box.get("derivatives", ""),
+    }
+
+
 def get_tracklist(movie_title: str) -> list[TrackEntry]:
     """
     Hae elokuvan soundtrack-tracklist Wikipediasta.
@@ -396,14 +419,41 @@ def _parse_track_listing(wikitext: str) -> list[TrackEntry]:
 
 def _clean_wikitext(text: str) -> str:
     """Poista wikitext-syntaksi: [[linkit]], {{templateit}}, HTML-tagit."""
-    # [[Teksti|Näkyvä]] → Näkyvä
+    # 1. Poista <ref>...</ref> viitteet ensin (sisältää usein sisäkkäisiä templateja)
+    text = re.sub(r"<ref\b[^>]*>.*?</ref>", "", text, flags=re.DOTALL)
+    text = re.sub(r"<ref\b[^>]*/?>", "", text)
+
+    # 2. Laajenna listatemplatet: {{hlist|A|B|C}} → A, B, C
+    def _hlist_expand(m: re.Match) -> str:
+        inner = m.group(1)
+        # Pura wikilinkit
+        inner = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", r"\1", inner)
+        items = [p.strip() for p in inner.split("|") if p.strip()]
+        return ", ".join(items)
+
+    text = re.sub(
+        r"\{\{(?:hlist|flatlist|ubl|bulleted list|plain list)\|(.*?)\}\}",
+        _hlist_expand,
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+    # 3. Poista jäljelle jääneet templatet sisältä ulospäin (iteratiivisesti)
+    prev = None
+    while prev != text:
+        prev = text
+        text = re.sub(r"\{\{[^{}]*\}\}", "", text)
+
+    # 4. [[Teksti|Näkyvä]] → Näkyvä
     text = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", r"\1", text)
     # [[Linkki]] → Linkki
     text = re.sub(r"\[\[([^\]]+)\]\]", r"\1", text)
-    # {{template}} pois
-    text = re.sub(r"\{\{[^}]*\}\}", "", text)
-    # HTML-tagit pois
+
+    # 5. HTML-tagit pois
     text = re.sub(r"<[^>]+>", "", text)
-    # Ylimääräiset välit
+
+    # 6. Siivous
+    text = re.sub(r",\s*,", ",", text)   # duplikaattipilkut
     text = re.sub(r"\s+", " ", text).strip()
+    text = text.strip(", ")
     return text
