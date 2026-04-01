@@ -294,7 +294,7 @@ def _search_spotify(spotify, artist: str, title: str, market: str) -> str:
             track_artist = _normalize(getattr(track, "artist", "") or "")
             if artist_norm in track_artist or track_artist in artist_norm:
                 return track.uri
-        # Fallback: ensimmäinen tulos
-        return results[0].uri
+        # Ei artistitäsmäystä — ei fallbackia, jotta väärä kappale ei päädy listalle
+        return ""
     except Exception:
         return ""

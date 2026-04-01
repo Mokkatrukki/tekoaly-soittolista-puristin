@@ -143,6 +143,10 @@ for a in lfm.similar_artists('Pixel Grip', limit=20):
 ```
 
 Ainoa pysyvä `.py`-tiedosto on valmis soittolista `playlists/nimi.py`.
+
+**Spotify-haun kaatuminen:** Jos artisti ei löydy FI-markkinasta, `resolve()` merkitsee kappaleen
+`unresolved`-listalle — ei ota väärää kappaletta tilalle. Tarkista `unresolved` buildin jälkeen
+ja etsi korvaava käsin tai vaihda kappale ennen buildia.
 Tutkimus, URI-haku ja soittolistan luonti tapahtuvat bash-komennoilla sessoin aikana.
 
 ## Kehitysperiaatteet
