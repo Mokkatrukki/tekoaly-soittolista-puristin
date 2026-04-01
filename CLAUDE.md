@@ -18,6 +18,8 @@ soittolistan Spotifyyn.
 | MusicBrainz | `musicbrainzngs` | Metatiedot, suhteet artistien välillä (ei API-avainta tarvita) |
 | ListenBrainz | `liblistenbrainz` | Kuunteludata, samankaltaissuositukset |
 | YLE Areena | httpx suoraan | Musiikkiohjelmien kuvaukset → soittolistat |
+| Wikipedia | httpx suoraan | Genren historia, infobox, `get_genre_info()` — käytä genren kartoitukseen |
+| Wikidata | SPARQL | Artistit genren/maan mukaan, elokuvatiedot — `artists_by_genre()` |
 
 ## API-avaimet (.env)
 
@@ -55,7 +57,12 @@ tekoäly-soittolista-puristin/
 │
 ├── curator/
 │   ├── interviewer.py            # Vuoropuhelun logiikka käyttäjän kanssa
-│   └── playlist_builder.py      # Kokoaa soittolistan API-datojen pohjalta
+│   ├── playlist_builder.py      # Kokoaa soittolistan API-datojen pohjalta
+│   └── philosophies/
+│       ├── INDEX.md             # Filosofioiden hakemisto
+│       └── symphonic_poem.md   # Ensimmäinen filosofia — pylväät/kansi/valot
+│
+├── playlists/                    # Valmiit soittolistat (.py-tiedostoja)
 │
 └── logs/
     └── sessions/                 # JSON-logit sessioittain (gitignore)
@@ -96,6 +103,7 @@ print(token_estimate(puhdas))
 
 **⚠️ Spotify blokkaa Discovery-endpointit Development mode -applikaatioilta (testattu 2026-03-17):**
 - ❌ `/recommendations` — poistettu (404) — käytä Last.fm/ListenBrainz
+- ❌ `/browse/new-releases` — estetty (403) — käytä ListenBrainz fresh_releases
 - ❌ `/artists/{id}/related-artists` — estetty (403)
 - ❌ `/artists/{id}/top-tracks` — estetty (403)
 - ❌ `/audio-features` — estetty (403)
@@ -132,13 +140,36 @@ print(token_estimate(puhdas))
 5. **Spotify viimeisenä** — vain URI:n löytämiseen, ei discovery-lähteenä
 
 ### Logiikka soittolistan rakentamisessa
+
+**Ensin lue `curator/philosophies/INDEX.md`** — valitse filosofia ennen kuin aloitat.
+Filosofia määrää rakenteen, artisti-hajontasäännöt ja rakennuskysymykset.
+
 1. **Haastattelu** — kysy käyttäjältä: tunnelma, tilanne, referenssikappaleita, mitä EI haluta
-2. **Laaja API-haku** — Last.fm `similar_artists` + `tag_top_tracks`, Discogs `search_japan`
-3. **Laadun suodatus** — Discogs want-arvo > 500 = merkittävä, > 2000 = klassikko
-4. **Monilähteinen vahvistus** — sama artisti useasta API:sta = vahva signaali
-5. **Pisteytysjärjestelmä** — kappale saa pisteitä jokaisesta lähteestä joka sen ehdottaa
-6. **Deduplikaatio** — sama kappale eri lähteistä = 1 kappale korkeammalla pisteellä
-7. **Spotify viimeisenä** — tarkistetaan löytyykö kappale, haetaan URI
+2. **Tarkista kuunteluhistoria** — `sp.recently_played()` → vältä viimeisen 30pv kappaleet
+3. **Laaja API-haku** — Last.fm `similar_artists` + `tag_top_tracks`, Discogs `search_japan`
+4. **Laadun suodatus** — Discogs want-arvo > 500 = merkittävä, > 2000 = klassikko
+5. **Monilähteinen vahvistus** — sama artisti useasta API:sta = vahva signaali
+6. **Pisteytysjärjestelmä** — kappale saa pisteitä jokaisesta lähteestä joka sen ehdottaa
+7. **Deduplikaatio** — sama kappale eri lähteistä = 1 kappale korkeammalla pisteellä
+8. **Spotify viimeisenä** — tarkistetaan löytyykö kappale, haetaan URI
+
+### Last.fm similar — korkea vs. matala match
+
+`track.getSimilar` palauttaa tuloksia match-arvolla 0–1:
+
+- **Korkea match (>0.5)** = pysyy genressä, turvalliset siirtymät, kannen täyte
+- **Matala match (<0.3)** = genrerajat alkavat hämärtyä — sieltä löytyvät **pakotiet**
+  ja yllätykset jotka tuntuvat silti oikeilta. Etsi tästä alueesta valot ja temaattiset sillat.
+
+Jos sama artisti nousee matalan matchin alueelta useasta eri lähtökappaleesta →
+vahva signaali: se artisti resonoi teeman tasolla, ei genren tasolla.
+
+### Artistihajonta soittolistassa
+
+Lue aktiivisen filosofian hajontasäännöt. Periaatteet `symphonic_poem`-filosofiassa:
+- Sama artisti: vähintään 6–8 kappaletta välissä
+- Sama albumi: max 1 kappale
+- Poikkeukset ovat mahdollisia — mutta niiden pitää olla tietoisia valintoja, ei laiskuutta
 
 ### API-rajoitukset ja tukeminen
 - **Discogs**: 60 req/min (token). Wrapper hoitaa rate limitin (1.1s/kutsu, autoretry 429)
