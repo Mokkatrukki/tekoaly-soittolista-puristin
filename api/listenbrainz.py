@@ -21,9 +21,12 @@ import os
 import time
 from dataclasses import dataclass
 
+import httpx
 import liblistenbrainz
 from dotenv import load_dotenv
 from pathlib import Path
+
+LB_API_BASE = "https://api.listenbrainz.org"
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -126,6 +129,68 @@ class ListenBrainzClient:
                 "score": score,
             })
         return out
+
+    # ─── Uudet julkaisut ─────────────────────────────────────────────────────
+
+    def fresh_releases(
+        self,
+        days: int = 30,
+        sort: str = "listen_count",  # "listen_count" | "release_date"
+        limit: int = 100,
+    ) -> list[dict]:
+        """
+        Tuoreet julkaisut ListenBrainzin Fresh Releases -feedistä.
+        sort="listen_count" → nousevat (eniten kuunneltuja uusista julkaisuista)
+        sort="release_date" → uusimmat ensin (enemmän harvinaisia)
+
+        Palauttaa: [{
+            artist: str,
+            album: str,
+            release_date: str,  # "2026-03-15"
+            release_mbid: str,
+            release_type: str,  # "Album" | "Single" | "EP" | ...
+            tags: list[str],
+            listen_count: int,
+        }]
+        """
+        t0 = time.monotonic()
+        error = None
+        releases = []
+        try:
+            # API tukee vain sort=release_date — listen_count-sorttaus tehdään client-side
+            api_sort = "release_date" if sort == "listen_count" else sort
+            r = httpx.get(
+                f"{LB_API_BASE}/1/explore/fresh-releases/",
+                params={"days": days, "sort": api_sort},
+                timeout=30,
+            )
+            r.raise_for_status()
+            raw = r.json().get("payload", {}).get("releases", [])
+            for item in raw:
+                releases.append({
+                    "artist": item.get("artist_credit_name", ""),
+                    "album": item.get("release_name", ""),
+                    "release_date": item.get("release_date", ""),
+                    "release_mbid": item.get("release_mbid", ""),
+                    "release_type": item.get("release_group_primary_type", ""),
+                    "tags": item.get("release_tags", []),
+                    "listen_count": item.get("listen_count", 0) or 0,
+                })
+            if sort == "listen_count":
+                releases.sort(key=lambda x: x["listen_count"], reverse=True)
+        except Exception as e:
+            error = str(e)
+            raise
+        finally:
+            latency = (time.monotonic() - t0) * 1000
+            self.call_log.append(ApiCall(
+                endpoint="explore.fresh-releases",
+                params={"days": days, "sort": sort},
+                result_count=len(releases),
+                latency_ms=round(latency, 1),
+                error=error,
+            ))
+        return releases[:limit]
 
     # ─── Käyttäjädata ────────────────────────────────────────────────────────
 

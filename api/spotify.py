@@ -420,6 +420,59 @@ class SpotifyClient:
                 return p
         return None
 
+    # ─── Uudet julkaisut ─────────────────────────────────────────────────────
+
+    def new_releases(self, country: str = "FI", limit: int = 50) -> list[dict]:
+        """
+        Uusimmat albumijulkaisut Spotifyn Browse-rajapinnasta.
+        Tämä on Browse-endpoint (ei Discovery) — toimii Development modessa.
+
+        Palauttaa: [{album_id, album_name, artist, artist_id, release_date, uri}]
+        """
+        raw = self._call(
+            "new_releases", {"country": country, "limit": limit},
+            self._sp.new_releases, country=country, limit=limit,
+        )
+        out = []
+        for album in raw.get("albums", {}).get("items", []):
+            if not album:
+                continue
+            artists = album.get("artists", [])
+            out.append({
+                "album_id": album["id"],
+                "album_name": album["name"],
+                "artist": artists[0]["name"] if artists else "?",
+                "artist_id": artists[0]["id"] if artists else "",
+                "release_date": album.get("release_date", ""),
+                "uri": album.get("uri", ""),
+            })
+        return out
+
+    def album_tracks(self, album_id: str, market: str = "FI") -> list[Track]:
+        """
+        Albumin kappaleet. Palauttaa Track-listan.
+        Käytetään new_releases-albumien kappaleiden hakemiseen.
+        """
+        raw = self._call(
+            "album_tracks", {"album_id": album_id, "market": market},
+            self._sp.album_tracks, album_id, market=market, limit=50,
+        )
+        out = []
+        for t in raw.get("items", []):
+            if not t:
+                continue
+            artists = t.get("artists", [])
+            out.append(Track(
+                id=t["id"],
+                uri=t["uri"],
+                name=t["name"],
+                artist=artists[0]["name"] if artists else "?",
+                artist_id=artists[0]["id"] if artists else "",
+                album="",  # ei albumitietoa tässä vastauksessa
+                duration_ms=t.get("duration_ms", 0),
+            ))
+        return out
+
     # ─── Kuunteluhistoria ─────────────────────────────────────────────────────
 
     def recently_played(self, limit: int = 50) -> list[dict]:
