@@ -128,6 +128,23 @@ print(token_estimate(puhdas))
 - Remote-URL muoto: `git@github-mokkatrukki:mokkatrukki/repo.git`
 - **Push on käyttäjän vastuulla** — Claude ei pushaa
 
+## API-kutsujen ajaminen session aikana
+
+**Ei väliaikaisia .py-tiedostoja.** Tutkimus- ja rakennuskoodi ajetaan suoraan bashilla:
+
+```bash
+.venv/bin/python -c "
+import sys; sys.path.insert(0, '.')
+from api.lastfm import LastFmClient
+lfm = LastFmClient()
+for a in lfm.similar_artists('Pixel Grip', limit=20):
+    print(a)
+"
+```
+
+Ainoa pysyvä `.py`-tiedosto on valmis soittolista `playlists/nimi.py`.
+Tutkimus, URI-haku ja soittolistan luonti tapahtuvat bash-komennoilla sessoin aikana.
+
 ## Kehitysperiaatteet
 
 ### API-ensimmäinen filosofia (TÄRKEÄÄ)
