@@ -240,6 +240,39 @@ Inspiraationa Alice Labs/Solita "Embracing User Unpredictability" (2022) — ei 
 
 **Muuttuneet tiedostot:** `api/discogs.py` (search_background + Lock + thread-safe throttle), `CLAUDE.md` (Discogs taustahaku -ohje koodiesimerkin kanssa), `.claude/commands/build.md` (Discogs-osio päivitetty oikeaan käyttötapaan)
 
+### [2026-04-01] Soittolista "Tumma sähkö" — Pixel Grip & the Dark Electric
+
+**Soittolista:** "Tumma sähkö" (28 kpl, https://open.spotify.com/playlist/6moffjoZWbVrmQkG4OQ2oA)
+- Rakentuu Pixel Gripin ympärille: darkwave · EBM · post-punk · body music
+- Teema: kehon kontrolli ja sen hajoaminen — kaupunki, neon, koneaalto
+- Symphonic poem: 3 aaltoa + hengähdys + laskeutuminen
+
+**Pylväät:**
+- Pixel Grip (4 kpl: Demon Chaser, Stamina, ALPHAPUSSY, Dancing On Your Grave)
+- Boy Harsher (3 kpl: Tears, Morphine, LA)
+- Sextile (2 kpl: Disco, Contortion)
+- Linea Aspera/Zanias (2 kpl kumpainenkin)
+
+**Valot:**
+- Nitzer Ebb — Let Your Body Learn (VALO 1: 1987, OG EBM, yllättää hengähdyskohdassa)
+- Marie Davidson — Demolition (VALO 2: Montréal minimalismi, eri suunta)
+
+**API-prosessi:**
+- Last.fm `similar_artists(Pixel Grip)` → 25 artistia, korkein match Panther Modern (1.0)
+- Toinen aste: similar_artists jokaiselle top-5 matchille → löytyi Buzz Kull, NNHMN, Linea Aspera
+- `similar_tracks` Pixel Grip huippubiiseille → vahvisti Sextile, Boy Harsher, Linea Aspera
+- Tagit: darkwave/EBM/synth-pop → vahvisti Nitzer Ebb, Front 242 (klassiikot) + Ultra Sunn
+- Discogs: Pixel Grip Arena want=120, Sextile want=297, Nitzer Ebb want=980, Front 242 want=704
+- 28/28 löytyi Spotifysta
+
+**Artisti-hajonta tarkistettu:**
+- Pixel Grip: 3, 11, 19, 26 — välit: 8, 8, 7 ✓
+- Boy Harsher: 4, 13, 27 — välit: 9, 14 ✓
+- Sextile: 5, 21 — väli: 16 ✓
+- Zanias: 9, 25 — väli: 16 ✓
+
+**Tiedosto:** `playlists/tumma_sahko.py`
+
 ## Tunnetut ongelmat / TODO
 
 ## Muistiinpanot optimointia varten
