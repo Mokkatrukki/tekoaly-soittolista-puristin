@@ -58,6 +58,7 @@ tekoäly-soittolista-puristin/
 ├── curator/
 │   ├── interviewer.py            # Vuoropuhelun logiikka käyttäjän kanssa
 │   ├── playlist_builder.py      # Kokoaa soittolistan API-datojen pohjalta
+│   ├── genre_map.md             # Genrekartta — lue ennen genriehdotuksia (ei bias!)
 │   └── philosophies/
 │       ├── INDEX.md             # Filosofioiden hakemisto
 │       └── symphonic_poem.md   # Ensimmäinen filosofia — pylväät/kansi/valot
@@ -151,6 +152,12 @@ Tutkimus, URI-haku ja soittolistan luonti tapahtuvat bash-komennoilla sessoin ai
 
 ## Kehitysperiaatteet
 
+### Genrekartta (TÄRKEÄÄ — lue ennen genriehdotuksia)
+
+`curator/genre_map.md` sisältää laajan genrehierarkian elektronisesta musiikista
+metaliin, hip-hopista latinoon. **Lue se ennen kuin ehdotat genrejä tai lähtöpisteitä.**
+Älä oleta että käyttäjä haluaa ambienttia tai jazzia — koko kenttä on käytössä.
+
 ### API-ensimmäinen filosofia (TÄRKEÄÄ)
 **APIen data on totuus. Oma tietämys maustaa, ei johda.**
 
@@ -200,13 +207,13 @@ Lue aktiivisen filosofian hajontasäännöt. Periaatteet `symphonic_poem`-filoso
 ```python
 # ✅ OIKEIN — Discogs taustalla, ei blokkaa
 futures = dc.search_background([
-    ('Burial Untrue', 3),
-    ('Jon Hopkins Immunity', 2),
-    ('Boards of Canada Music Has the Right to Children', 2),
+    ('ARTISTI1 ALBUMI1', 3),
+    ('ARTISTI2 ALBUMI2', 2),
+    ('ARTISTI3 ALBUMI3', 2),
 ])
 # Tee Last.fm-haut tässä välissä (Discogs pyörii taustalla)
-similar = lfm.similar_artists('Burial', limit=20)
-tag_tracks = lfm.tag_top_tracks('ambient', limit=20)
+similar = lfm.similar_artists('ARTISTI1', limit=20)
+tag_tracks = lfm.tag_top_tracks('TAG', limit=20)
 # Nouda Discogs-tulokset vasta kun tarvitaan
 for query, fut in futures.items():
     results = fut.result()  # blokkaa vain jos ei vielä valmis
